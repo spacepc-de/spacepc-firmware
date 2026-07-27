@@ -27,7 +27,7 @@ jobs:
           python-version: "3.13"
           cache: pip
       - name: Install PlatformIO
-        run: pip install platformio==6.1.18
+        run: pip install -r requirements.txt
       - name: Compile ${{ matrix.project }}
         working-directory: projects/${{ matrix.project }}
         run: pio run

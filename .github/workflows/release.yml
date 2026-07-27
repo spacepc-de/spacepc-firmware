@@ -38,7 +38,7 @@ jobs:
           echo "project=$project" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install PlatformIO
-        run: pip install platformio==6.1.18
+        run: pip install -r requirements.txt
       - name: Compile
         working-directory: projects/${{ steps.release.outputs.project }}
         run: pio run
