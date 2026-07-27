@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  pages: write
+  id-token: write
 
 jobs:
   release:
@@ -54,3 +56,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" firmware-dist/* --verify-tag --generate-notes
+      - name: Prepare browser installer files
+        run: |
+          versioned="firmware-site/${{ steps.release.outputs.project }}/${{ steps.release.outputs.version }}"
+          latest="firmware-site/${{ steps.release.outputs.project }}/latest"
+          mkdir -p "$versioned" "$latest"
+          cp firmware-dist/* "$versioned/"
+          cp firmware-dist/* "$latest/"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: firmware-site
+      - name: Publish browser installer files
+        uses: actions/deploy-pages@v4
+        id: deployment
+        with:
+          token: ${{ github.token }}
