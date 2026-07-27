@@ -46,9 +46,10 @@ jobs:
           node scripts/prepare-release.mjs \
             --project "${{ steps.release.outputs.project }}" \
             --version "${{ steps.release.outputs.version }}" \
-            --build-dir "projects/${{ steps.release.outputs.project }}/.pio/build/spacepc-development" \
+            --esp32-build-dir "projects/${{ steps.release.outputs.project }}/.pio/build/esp32-devkit" \
+            --esp32-s3-build-dir "projects/${{ steps.release.outputs.project }}/.pio/build/esp32-s3-devkit" \
             --out firmware-dist \
-            --hardware "development-target-unverified" \
+            --hardware "ESP32 DevKit and ESP32-S3 DevKit development targets (unverified)" \
             --stability beta \
             --build-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --source-commit "$GITHUB_SHA"
