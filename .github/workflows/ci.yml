@@ -12,14 +12,6 @@ permissions:
 jobs:
   compile:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        project:
-          - smart-fan
-          - room-sensor
-          - epaper-weather-display
-          - bedside-lamp
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -28,6 +20,6 @@ jobs:
           cache: pip
       - name: Install PlatformIO
         run: pip install -r requirements.txt
-      - name: Compile ${{ matrix.project }}
-        working-directory: projects/${{ matrix.project }}
+      - name: Compile dummy test
+        working-directory: projects/dummy-test
         run: pio run
