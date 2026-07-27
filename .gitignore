@@ -1,0 +1,5 @@
+.pio/
+.venv/
+firmware-dist/
+*.log
+.DS_Store

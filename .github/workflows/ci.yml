@@ -1,0 +1,33 @@
+name: Compile firmware
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project:
+          - smart-fan
+          - room-sensor
+          - epaper-weather-display
+          - bedside-lamp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install PlatformIO
+        run: pip install platformio==6.1.18
+      - name: Compile ${{ matrix.project }}
+        working-directory: projects/${{ matrix.project }}
+        run: pio run

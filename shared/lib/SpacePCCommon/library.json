@@ -1,0 +1,7 @@
+{
+  "name": "SpacePCCommon",
+  "version": "0.1.0",
+  "description": "Hardware-neutral shared helpers for SpacePC firmware",
+  "frameworks": ["arduino"],
+  "platforms": ["espressif32"]
+}

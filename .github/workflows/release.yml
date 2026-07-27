@@ -1,0 +1,55 @@
+name: Publish firmware release
+
+on:
+  push:
+    tags:
+      - "smart-fan-v*"
+      - "room-sensor-v*"
+      - "epaper-weather-display-v*"
+      - "bedside-lamp-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Resolve release
+        id: release
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          project="${tag%-v*}"
+          version="${tag#"$project-v"}"
+          case "$project" in
+            smart-fan|room-sensor|epaper-weather-display|bedside-lamp) ;;
+            *) echo "Unsupported project: $project"; exit 1 ;;
+          esac
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid semantic version: $version"
+            exit 1
+          fi
+          echo "project=$project" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install PlatformIO
+        run: pip install platformio==6.1.18
+      - name: Compile
+        working-directory: projects/${{ steps.release.outputs.project }}
+        run: pio run
+      - name: Prepare manifest and checksums
+        run: |
+          node scripts/prepare-release.mjs \
+            --project "${{ steps.release.outputs.project }}" \
+            --version "${{ steps.release.outputs.version }}" \
+            --build-dir "projects/${{ steps.release.outputs.project }}/.pio/build/spacepc-development" \
+            --out firmware-dist
+      - name: Publish immutable release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" firmware-dist/* --verify-tag --generate-notes
