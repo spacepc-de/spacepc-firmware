@@ -45,7 +45,11 @@ jobs:
             --project "${{ steps.release.outputs.project }}" \
             --version "${{ steps.release.outputs.version }}" \
             --build-dir "projects/${{ steps.release.outputs.project }}/.pio/build/spacepc-development" \
-            --out firmware-dist
+            --out firmware-dist \
+            --hardware "development-target-unverified" \
+            --stability beta \
+            --build-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            --source-commit "$GITHUB_SHA"
       - name: Publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}

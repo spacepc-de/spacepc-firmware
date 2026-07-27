@@ -14,6 +14,9 @@ const version = argument("version");
 const buildDirectory = resolve(argument("build-dir") ?? "");
 const outputDirectory = resolve(argument("out") ?? "firmware-dist");
 const hardware = argument("hardware") ?? "development-target-unverified";
+const stability = argument("stability") ?? (version?.includes("-") ? "beta" : "stable");
+const buildDate = argument("build-date") ?? new Date().toISOString();
+const sourceCommit = argument("source-commit");
 
 if (!project || !version || !argument("build-dir")) {
   throw new Error("Usage: prepare-release.mjs --project <id> --version <semver> --build-dir <path> [--out <path>] [--hardware <revision>]");
@@ -21,6 +24,10 @@ if (!project || !version || !argument("build-dir")) {
 
 if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
   throw new Error("Version must use semantic versioning.");
+}
+
+if (!["beta", "stable"].includes(stability)) {
+  throw new Error("Stability must be either beta or stable.");
 }
 
 const flashLayoutPath = resolve(buildDirectory, "flash-layout.json");
@@ -54,7 +61,11 @@ const manifest = {
   spacepc: {
     projectId: project,
     hardware: [hardware],
-    stability: version.includes("-") ? "beta" : "stable"
+    stability,
+    buildDate,
+    sourceCommit,
+    releaseNotes: ["Automated dummy firmware pipeline test. No device functionality is included."],
+    eraseSettings: true
   }
 };
 
