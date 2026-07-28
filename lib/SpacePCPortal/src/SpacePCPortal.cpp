@@ -9,6 +9,7 @@ namespace {
 constexpr uint32_t wifiConnectTimeoutMs = 20000;
 constexpr uint32_t mqttRetryIntervalMs = 5000;
 constexpr char setupAccessPointPassword[] = "spacepcsetup";
+constexpr char localApiPath[] = "/api/v1";
 
 String htmlEscape(String value) {
   value.replace("&", "&amp;");
@@ -64,6 +65,19 @@ bool validFieldKey(const char *key) {
   return true;
 }
 
+bool validEntityPlatform(const char *platform) {
+  if (!platform || strlen(platform) == 0) {
+    return true;
+  }
+  return
+    strcmp(platform, "sensor") == 0 ||
+    strcmp(platform, "binary_sensor") == 0 ||
+    strcmp(platform, "switch") == 0 ||
+    strcmp(platform, "light") == 0 ||
+    strcmp(platform, "fan") == 0 ||
+    strcmp(platform, "update") == 0;
+}
+
 String preferenceKey(const char *fieldKey) {
   return "f-" + String(fieldKey);
 }
@@ -83,7 +97,7 @@ String generatedDeviceId() {
 }
 
 SpacePCPortal::SpacePCPortal()
-  : config_{nullptr, nullptr, nullptr},
+  : config_{nullptr, nullptr, nullptr, nullptr, nullptr, nullptr},
     mqttClient_(networkClient_),
     webServer_(80),
     numberFieldCount_(0),
@@ -153,11 +167,14 @@ bool SpacePCPortal::addHomeAssistantEntity(
     entityCount_ >= maxEntities ||
     !validFieldKey(entity.objectId) ||
     !entity.name ||
-    !entity.valueTemplate
+    !entity.valueTemplate ||
+    !validEntityPlatform(entity.platform)
   ) {
     return false;
   }
   entities_[entityCount_] = entity;
+  entityValues_[entityCount_] = "null";
+  entityAvailable_[entityCount_] = false;
   entityCount_ += 1;
   return true;
 }
@@ -239,15 +256,16 @@ bool SpacePCPortal::mqttConnected() {
 }
 
 bool SpacePCPortal::publishDue() {
-  if (!mqttClient_.connected()) {
-    return false;
-  }
   const uint32_t intervalMs = publishIntervalSeconds_ * 1000UL;
   return lastPublish_ == 0 || millis() - lastPublish_ >= intervalMs;
 }
 
 bool SpacePCPortal::publishState(const String &jsonPayload) {
-  if (!mqttClient_.connected() || jsonPayload.isEmpty()) {
+  if (jsonPayload.isEmpty()) {
+    return false;
+  }
+  lastPublish_ = millis();
+  if (!mqttClient_.connected()) {
     return false;
   }
   const bool published = mqttClient_.publish(
@@ -255,10 +273,31 @@ bool SpacePCPortal::publishState(const String &jsonPayload) {
     jsonPayload.c_str(),
     true
   );
-  if (published) {
-    lastPublish_ = millis();
-  }
   return published;
+}
+
+bool SpacePCPortal::setEntityState(
+  const char *objectId,
+  const String &jsonValue,
+  bool available
+) {
+  const int index = entityIndex(objectId);
+  if (index < 0 || jsonValue.isEmpty()) {
+    return false;
+  }
+  entityValues_[index] = jsonValue;
+  entityAvailable_[index] = available;
+  return true;
+}
+
+bool SpacePCPortal::setEntityUnavailable(const char *objectId) {
+  const int index = entityIndex(objectId);
+  if (index < 0) {
+    return false;
+  }
+  entityValues_[index] = "null";
+  entityAvailable_[index] = false;
+  return true;
 }
 
 void SpacePCPortal::setProjectStatus(const String &status) {
@@ -339,7 +378,7 @@ bool SpacePCPortal::saveSettings() {
   success &= preferences.putString("name", deviceName_) > 0;
   success &= preferences.putString("wifi-ssid", wifiSsid_) > 0;
   preferences.putString("wifi-pass", wifiPassword_);
-  success &= preferences.putString("mqtt-host", mqttHost_) > 0;
+  preferences.putString("mqtt-host", mqttHost_);
   success &= preferences.putUShort("mqtt-port", mqttPort_) > 0;
   preferences.putString("mqtt-user", mqttUsername_);
   preferences.putString("mqtt-pass", mqttPassword_);
@@ -396,7 +435,7 @@ void SpacePCPortal::connectWifi() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    MDNS.begin(deviceId_.c_str());
+    startMdns();
     Serial.printf(
       "Wi-Fi connected: %s or http://%s.local\n",
       configurationUrl().c_str(),
@@ -437,6 +476,12 @@ void SpacePCPortal::startWebServer() {
   });
   webServer_.on("/api/status", HTTP_GET, [this] {
     handleStatus();
+  });
+  webServer_.on("/api/v1/info", HTTP_GET, [this] {
+    handleApiInfo();
+  });
+  webServer_.on("/api/v1/state", HTTP_GET, [this] {
+    handleApiState();
   });
   webServer_.on("/generate_204", HTTP_ANY, [this] {
     redirectToPortal();
@@ -637,7 +682,6 @@ void SpacePCPortal::handleSave() {
   bool valid =
     !deviceName_.isEmpty() &&
     !wifiSsid_.isEmpty() &&
-    !mqttHost_.isEmpty() &&
     mqttPort_ > 0 &&
     validPublishTopic(mqttBaseTopic_) &&
     publishIntervalSeconds_ >= 5 &&
@@ -698,9 +742,127 @@ void SpacePCPortal::handleStatus() {
   webServer_.send(200, "application/json", payload);
 }
 
+void SpacePCPortal::handleApiInfo() {
+  String payload;
+  payload.reserve(768 + entityCount_ * 192);
+  payload = "{";
+  payload += "\"api_version\":1,";
+  payload += "\"device_id\":\"" + jsonEscape(deviceId_) + "\",";
+  payload += "\"name\":\"" + jsonEscape(deviceName_) + "\",";
+  payload += "\"manufacturer\":\"SpacePC\",";
+  payload +=
+    "\"model\":\"" +
+    jsonEscape(config_.model ? config_.model : "ESP32 device") +
+    "\",";
+  payload +=
+    "\"project_id\":\"" +
+    jsonEscape(config_.projectId ? config_.projectId : "spacepc-device") +
+    "\",";
+  payload += "\"firmware\":{";
+  payload +=
+    "\"version\":\"" +
+    jsonEscape(
+      config_.firmwareVersion ? config_.firmwareVersion : "0.0.0-dev"
+    ) +
+    "\"";
+  if (config_.firmwareBuildDate && strlen(config_.firmwareBuildDate) > 0) {
+    payload +=
+      ",\"build_date\":\"" +
+      jsonEscape(config_.firmwareBuildDate) +
+      "\"";
+  }
+  if (config_.sourceCommit && strlen(config_.sourceCommit) > 0) {
+    payload +=
+      ",\"source_commit\":\"" +
+      jsonEscape(config_.sourceCommit) +
+      "\"";
+  }
+  payload += "},\"auth_required\":false,\"entities\":[";
+
+  for (size_t index = 0; index < entityCount_; index += 1) {
+    if (index > 0) {
+      payload += ",";
+    }
+    const SpacePCHomeAssistantEntity &entity = entities_[index];
+    payload += "{";
+    payload += "\"id\":\"" + jsonEscape(entity.objectId) + "\",";
+    payload += "\"name\":\"" + jsonEscape(entity.name) + "\",";
+    payload +=
+      "\"platform\":\"" +
+      jsonEscape(entityPlatform(entity)) +
+      "\"";
+    if (entity.deviceClass && strlen(entity.deviceClass) > 0) {
+      payload +=
+        ",\"device_class\":\"" +
+        jsonEscape(entity.deviceClass) +
+        "\"";
+    }
+    if (entity.stateClass && strlen(entity.stateClass) > 0) {
+      payload +=
+        ",\"state_class\":\"" +
+        jsonEscape(entity.stateClass) +
+        "\"";
+    }
+    if (entity.unit && strlen(entity.unit) > 0) {
+      payload +=
+        ",\"unit\":\"" +
+        jsonEscape(entity.unit) +
+        "\"";
+    }
+    payload += "}";
+  }
+  payload += "]}";
+
+  webServer_.sendHeader("Cache-Control", "no-store");
+  webServer_.send(200, "application/json", payload);
+}
+
+void SpacePCPortal::handleApiState() {
+  String payload;
+  payload.reserve(384 + entityCount_ * 96);
+  payload = "{\"entities\":{";
+  for (size_t index = 0; index < entityCount_; index += 1) {
+    if (index > 0) {
+      payload += ",";
+    }
+    payload += "\"" + jsonEscape(entities_[index].objectId) + "\":{";
+    payload += "\"value\":" + entityValues_[index] + ",";
+    payload += "\"available\":";
+    payload += entityAvailable_[index] ? "true" : "false";
+    payload += "}";
+  }
+  payload += "},\"diagnostics\":{";
+  payload += "\"uptime_seconds\":" + String(millis() / 1000UL) + ",";
+  payload += "\"wifi_rssi_dbm\":";
+  payload += WiFi.status() == WL_CONNECTED ? String(WiFi.RSSI()) : "null";
+  payload += ",\"free_heap_bytes\":" + String(ESP.getFreeHeap());
+  payload += "}}";
+
+  webServer_.sendHeader("Cache-Control", "no-store");
+  webServer_.send(200, "application/json", payload);
+}
+
 void SpacePCPortal::redirectToPortal() {
   webServer_.sendHeader("Location", "/", true);
   webServer_.send(302, "text/plain", "");
+}
+
+void SpacePCPortal::startMdns() {
+  if (!MDNS.begin(deviceId_.c_str())) {
+    Serial.println("Could not start mDNS.");
+    return;
+  }
+  MDNS.addService("http", "tcp", 80);
+  MDNS.addService("spacepc", "tcp", 80);
+  MDNS.addServiceTxt("spacepc", "tcp", "id", deviceId_);
+  MDNS.addServiceTxt("spacepc", "tcp", "api", "1");
+  MDNS.addServiceTxt(
+    "spacepc",
+    "tcp",
+    "project",
+    config_.projectId ? config_.projectId : "spacepc-device"
+  );
+  MDNS.addServiceTxt("spacepc", "tcp", "path", localApiPath);
 }
 
 String SpacePCPortal::stateTopic() const {
@@ -718,6 +880,26 @@ String SpacePCPortal::discoveryTopic(const char *objectId) const {
     "/" +
     String(objectId) +
     "/config";
+}
+
+const char *SpacePCPortal::entityPlatform(
+  const SpacePCHomeAssistantEntity &entity
+) const {
+  return entity.platform && strlen(entity.platform) > 0
+    ? entity.platform
+    : "sensor";
+}
+
+int SpacePCPortal::entityIndex(const char *objectId) const {
+  if (!objectId) {
+    return -1;
+  }
+  for (size_t index = 0; index < entityCount_; index += 1) {
+    if (strcmp(entities_[index].objectId, objectId) == 0) {
+      return static_cast<int>(index);
+    }
+  }
+  return -1;
 }
 
 bool SpacePCPortal::fieldKeyExists(const char *key) const {

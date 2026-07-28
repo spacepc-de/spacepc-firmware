@@ -1,12 +1,14 @@
-# ESP32 DS18B20 MQTT temperature sensor
+# ESP32 DS18B20 temperature sensor
 
-This firmware reads one DS18B20 temperature sensor and publishes the result to
-a local MQTT broker. It includes a browser-based configuration page and
-optional Home Assistant MQTT Discovery.
+This firmware reads one DS18B20 temperature sensor and exposes the result
+through the local SpacePC API. It includes a browser-based configuration page,
+automatic discovery by the native SpacePC Home Assistant integration and
+optional MQTT publishing.
 
-The setup interface, Wi-Fi provisioning, MQTT connection and Home Assistant
-Discovery behavior come from the shared `SpacePCPortal` library. This project
-adds only the DS18B20 GPIO field, temperature reading and temperature entity.
+The setup interface, Wi-Fi provisioning, local API, mDNS discovery, MQTT
+connection and MQTT Discovery behavior come from the shared `SpacePCPortal`
+library. This project adds only the DS18B20 GPIO field, temperature reading and
+temperature entity.
 
 ## Supported build targets
 
@@ -51,6 +53,21 @@ in the serial log and usually at `http://spacepc-xxxxxxxxxxxx.local`.
 
 Passwords are never returned into the HTML form. Leaving a password field empty
 keeps the stored value; use the adjacent checkbox to clear a stored password.
+
+MQTT is optional for native Home Assistant use. Leave the broker field empty
+when no MQTT connection is wanted.
+
+## Native Home Assistant integration
+
+After joining Wi-Fi, the device advertises `_spacepc._tcp.local.` and is
+discovered by the
+[`SpacePC integration`](https://github.com/spacepc-de/home-assistant-spacepc).
+No MQTT broker is required for this path.
+
+The device exposes:
+
+- `GET /api/v1/info` for device, firmware and entity metadata;
+- `GET /api/v1/state` for temperature, availability and diagnostics.
 
 ## MQTT
 

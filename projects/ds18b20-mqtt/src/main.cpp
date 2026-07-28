@@ -14,7 +14,10 @@ uint32_t lastSensorAttempt = 0;
 const SpacePCPortalConfig projectConfig = {
   "ds18b20-mqtt",
   "DS18B20 temperature sensor",
-  "ESP32 DS18B20 MQTT Sensor"
+  "ESP32 DS18B20 Sensor",
+  "0.1.0-dev",
+  nullptr,
+  nullptr
 };
 
 const SpacePCNumberField sensorPinField = {
@@ -57,11 +60,14 @@ void readAndPublishTemperature() {
     temperature <= 125.0F;
   if (!validReading) {
     portal.setProjectStatus("sensor not found");
+    portal.setEntityUnavailable("temperature");
+    portal.publishState("{\"temperature\":null}");
     Serial.println("DS18B20 reading failed.");
     return;
   }
 
   portal.setProjectStatus("ready");
+  portal.setEntityState("temperature", String(temperature, 2));
   char payload[48];
   snprintf(payload, sizeof(payload), "{\"temperature\":%.2f}", temperature);
   if (portal.publishState(payload)) {
