@@ -34,7 +34,10 @@ DS18B20 in externally powered three-wire mode:
 | DATA | Configured GPIO |
 
 Install a **4.7 kΩ pull-up resistor between DATA and 3.3 V**. The firmware does
-not document or enable parasite-power mode. This is a low-voltage project.
+not document or enable parasite-power mode. It also enables the ESP32's weak
+internal pull-up for compatibility with short three-wire sensor assemblies,
+but this does not replace the external 4.7 kΩ resistor for a reliable final
+installation. This is a low-voltage project.
 
 The default data pin is GPIO 4. Pin availability and boot-strapping behavior
 differ between ESP32 families and individual boards. Select a safe pin for the
