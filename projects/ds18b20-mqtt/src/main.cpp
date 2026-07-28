@@ -15,9 +15,9 @@ const SpacePCPortalConfig projectConfig = {
   "ds18b20-mqtt",
   "DS18B20 temperature sensor",
   "ESP32 DS18B20 Sensor",
-  "0.1.0-dev",
-  nullptr,
-  nullptr
+  "0.1.0",
+  "2026-07-28",
+  "33c76f7"
 };
 
 const SpacePCNumberField sensorPinField = {
