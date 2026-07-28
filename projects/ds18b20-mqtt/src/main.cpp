@@ -39,9 +39,23 @@ const SpacePCHomeAssistantEntity temperatureEntity = {
 };
 
 void initializeSensor() {
-  oneWire = new OneWire(portal.numberValue("sensorPin"));
+  const int sensorPin = portal.numberValue("sensorPin");
+  oneWire = new OneWire(sensorPin);
+  pinMode(sensorPin, INPUT_PULLUP);
+  delay(10);
+  const bool presenceDetected = oneWire->reset();
+  Serial.printf(
+    "DS18B20 GPIO: %d, bus level: %s, presence pulse: %s\n",
+    sensorPin,
+    digitalRead(sensorPin) == HIGH ? "high" : "low",
+    presenceDetected ? "detected" : "missing"
+  );
   temperatureSensors = new DallasTemperature(oneWire);
   temperatureSensors->begin();
+  Serial.printf(
+    "DS18B20 devices found: %d\n",
+    temperatureSensors->getDeviceCount()
+  );
   portal.setProjectStatus(
     temperatureSensors->getDeviceCount() > 0 ? "ready" : "sensor not found"
   );
