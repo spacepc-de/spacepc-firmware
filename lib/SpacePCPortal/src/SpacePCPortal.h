@@ -10,6 +10,9 @@ struct SpacePCPortalConfig {
   const char *projectId;
   const char *displayName;
   const char *model;
+  const char *firmwareVersion;
+  const char *firmwareBuildDate;
+  const char *sourceCommit;
 };
 
 struct SpacePCNumberField {
@@ -43,6 +46,7 @@ struct SpacePCHomeAssistantEntity {
   const char *stateClass;
   const char *unit;
   const char *valueTemplate;
+  const char *platform;
 };
 
 class SpacePCPortal {
@@ -64,6 +68,12 @@ class SpacePCPortal {
   bool mqttConnected();
   bool publishDue();
   bool publishState(const String &jsonPayload);
+  bool setEntityState(
+    const char *objectId,
+    const String &jsonValue,
+    bool available = true
+  );
+  bool setEntityUnavailable(const char *objectId);
   void setProjectStatus(const String &status);
 
   String deviceId() const;
@@ -98,6 +108,8 @@ class SpacePCPortal {
   TextFieldState textFields_[maxFields];
   CheckboxFieldState checkboxFields_[maxFields];
   SpacePCHomeAssistantEntity entities_[maxEntities];
+  String entityValues_[maxEntities];
+  bool entityAvailable_[maxEntities];
   size_t numberFieldCount_;
   size_t textFieldCount_;
   size_t checkboxFieldCount_;
@@ -134,10 +146,15 @@ class SpacePCPortal {
   String renderProjectFields() const;
   void handleSave();
   void handleStatus();
+  void handleApiInfo();
+  void handleApiState();
   void redirectToPortal();
 
+  void startMdns();
   String stateTopic() const;
   String availabilityTopic() const;
   String discoveryTopic(const char *objectId) const;
+  const char *entityPlatform(const SpacePCHomeAssistantEntity &entity) const;
+  int entityIndex(const char *objectId) const;
   bool fieldKeyExists(const char *key) const;
 };

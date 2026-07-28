@@ -45,9 +45,9 @@ const char spacePCPortalPage[] PROGMEM = R"HTML(
       <label class="check"><input name="clearWifiPassword" type="checkbox" value="1">Clear the stored Wi-Fi password (open network)</label>
     </section>
     <section>
-      <h2>MQTT</h2>
+      <h2>MQTT <small>(optional)</small></h2>
       <div class="grid">
-        <div><label for="mqttHost">Broker host or IP</label><input id="mqttHost" name="mqttHost" maxlength="128" required value="{{MQTT_HOST}}"></div>
+        <div><label for="mqttHost">Broker host or IP</label><input id="mqttHost" name="mqttHost" maxlength="128" value="{{MQTT_HOST}}"></div>
         <div><label for="mqttPort">Port</label><input id="mqttPort" name="mqttPort" type="number" min="1" max="65535" required value="{{MQTT_PORT}}"></div>
       </div>
       <div class="grid">
@@ -58,7 +58,7 @@ const char spacePCPortalPage[] PROGMEM = R"HTML(
       <label for="mqttBaseTopic">Base topic</label>
       <input id="mqttBaseTopic" name="mqttBaseTopic" maxlength="128" required value="{{MQTT_TOPIC}}">
       <label class="check"><input name="homeAssistantDiscovery" type="checkbox" value="1" {{HA_CHECKED}}>Publish Home Assistant MQTT Discovery</label>
-      <small>MQTT traffic is unencrypted. Use this firmware only with a trusted local broker/network.</small>
+      <small>Leave the broker empty when using only the native SpacePC Home Assistant integration. MQTT traffic is unencrypted and intended for trusted local networks.</small>
     </section>
     <button type="submit">Save and restart</button>
   </form>
