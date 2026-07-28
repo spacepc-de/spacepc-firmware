@@ -7,6 +7,7 @@
 
 namespace {
 constexpr uint32_t wifiConnectTimeoutMs = 20000;
+constexpr uint32_t wifiRetryIntervalMs = 10000;
 constexpr uint32_t mqttRetryIntervalMs = 5000;
 constexpr char setupAccessPointPassword[] = "spacepcsetup";
 constexpr char localApiPath[] = "/api/v1";
@@ -109,6 +110,9 @@ SpacePCPortal::SpacePCPortal()
     publishIntervalSeconds_(60),
     projectStatus_("starting"),
     accessPointActive_(false),
+    wifiConnected_(false),
+    mdnsActive_(false),
+    lastWifiAttempt_(0),
     lastMqttAttempt_(0),
     lastPublish_(0) {}
 
@@ -199,6 +203,7 @@ void SpacePCPortal::begin(const SpacePCPortalConfig &config) {
 }
 
 void SpacePCPortal::loop() {
+  maintainWifi();
   if (accessPointActive_) {
     dnsServer_.processNextRequest();
   }
@@ -425,7 +430,9 @@ void SpacePCPortal::connectWifi() {
 
   WiFi.mode(WIFI_STA);
   WiFi.setHostname(deviceId_.c_str());
+  WiFi.setAutoReconnect(true);
   WiFi.begin(wifiSsid_.c_str(), wifiPassword_.c_str());
+  lastWifiAttempt_ = millis();
   const uint32_t startedAt = millis();
   while (
     WiFi.status() != WL_CONNECTED &&
@@ -435,6 +442,7 @@ void SpacePCPortal::connectWifi() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
+    wifiConnected_ = true;
     startMdns();
     Serial.printf(
       "Wi-Fi connected: %s or http://%s.local\n",
@@ -444,6 +452,46 @@ void SpacePCPortal::connectWifi() {
     return;
   }
   startAccessPoint();
+}
+
+void SpacePCPortal::maintainWifi() {
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  if (connected) {
+    if (wifiConnected_) {
+      return;
+    }
+    wifiConnected_ = true;
+    stopAccessPoint();
+    startMdns();
+    Serial.printf(
+      "Wi-Fi reconnected: %s or http://%s.local\n",
+      configurationUrl().c_str(),
+      deviceId_.c_str()
+    );
+    return;
+  }
+
+  if (wifiConnected_) {
+    wifiConnected_ = false;
+    if (mdnsActive_) {
+      MDNS.end();
+      mdnsActive_ = false;
+    }
+    if (mqttClient_.connected()) {
+      mqttClient_.disconnect();
+    }
+    Serial.println("Wi-Fi disconnected.");
+  }
+
+  if (
+    wifiSsid_.isEmpty() ||
+    millis() - lastWifiAttempt_ < wifiRetryIntervalMs
+  ) {
+    return;
+  }
+  lastWifiAttempt_ = millis();
+  Serial.println("Attempting Wi-Fi reconnect.");
+  WiFi.reconnect();
 }
 
 void SpacePCPortal::startAccessPoint() {
@@ -465,6 +513,17 @@ void SpacePCPortal::startAccessPoint() {
     setupAccessPointPassword,
     configurationUrl().c_str()
   );
+}
+
+void SpacePCPortal::stopAccessPoint() {
+  if (!accessPointActive_) {
+    return;
+  }
+  dnsServer_.stop();
+  WiFi.softAPdisconnect(false);
+  accessPointActive_ = false;
+  WiFi.mode(WIFI_STA);
+  Serial.println("Setup access point stopped.");
 }
 
 void SpacePCPortal::startWebServer() {
@@ -848,6 +907,10 @@ void SpacePCPortal::redirectToPortal() {
 }
 
 void SpacePCPortal::startMdns() {
+  if (mdnsActive_) {
+    MDNS.end();
+    mdnsActive_ = false;
+  }
   if (!MDNS.begin(deviceId_.c_str())) {
     Serial.println("Could not start mDNS.");
     return;
@@ -863,6 +926,7 @@ void SpacePCPortal::startMdns() {
     config_.projectId ? config_.projectId : "spacepc-device"
   );
   MDNS.addServiceTxt("spacepc", "tcp", "path", localApiPath);
+  mdnsActive_ = true;
 }
 
 String SpacePCPortal::stateTopic() const {

@@ -131,13 +131,18 @@ class SpacePCPortal {
   String accessPointName_;
   String projectStatus_;
   bool accessPointActive_;
+  bool wifiConnected_;
+  bool mdnsActive_;
+  uint32_t lastWifiAttempt_;
   uint32_t lastMqttAttempt_;
   uint32_t lastPublish_;
 
   void loadSettings();
   bool saveSettings();
   void connectWifi();
+  void maintainWifi();
   void startAccessPoint();
+  void stopAccessPoint();
   void startWebServer();
   bool connectMqtt();
   void publishDiscovery();

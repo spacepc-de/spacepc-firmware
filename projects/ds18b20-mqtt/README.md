@@ -72,6 +72,11 @@ The device exposes:
 - `GET /api/v1/info` for device, firmware and entity metadata;
 - `GET /api/v1/state` for temperature, availability and diagnostics.
 
+If the sensor is disconnected, its entity becomes unavailable. The firmware
+rescans the OneWire bus after failed readings and restores the entity
+automatically after the sensor is reconnected. Wi-Fi and mDNS also recover
+without rebooting the ESP32.
+
 ## MQTT
 
 With base topic `spacepc/temperature`, the firmware publishes retained messages:

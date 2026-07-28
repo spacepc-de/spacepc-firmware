@@ -76,6 +76,7 @@ void readAndPublishTemperature() {
     portal.setProjectStatus("sensor not found");
     portal.setEntityUnavailable("temperature");
     portal.publishState("{\"temperature\":null}");
+    temperatureSensors->begin();
     Serial.println("DS18B20 reading failed.");
     return;
   }
