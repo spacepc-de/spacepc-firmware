@@ -11,11 +11,18 @@ projects/
   ds18b20-mqtt/
 scripts/
   prepare-release.mjs
+lib/
+  SpacePCPortal/
 ```
 
 `dummy-test` verifies the build and release pipeline without controlling
 hardware. `ds18b20-mqtt` is a configurable temperature sensor with a local web
 interface, MQTT publishing and optional Home Assistant MQTT Discovery.
+
+Functional projects should use `lib/SpacePCPortal` for the shared Wi-Fi setup,
+web interface, MQTT connection, transmission interval and Home Assistant
+Discovery switch. Projects register only their hardware-specific fields and
+entities so that setup behavior remains consistent across firmware.
 
 ## Local build
 
