@@ -23,3 +23,6 @@ jobs:
       - name: Compile dummy test
         working-directory: projects/dummy-test
         run: pio run
+      - name: Compile DS18B20 MQTT sensor
+        working-directory: projects/ds18b20-mqtt
+        run: pio run

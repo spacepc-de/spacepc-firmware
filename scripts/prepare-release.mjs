@@ -9,18 +9,26 @@ function argument(name) {
   return index === -1 ? undefined : process.argv[index + 1];
 }
 
+function argumentsFor(name) {
+  return process.argv.flatMap((value, index) =>
+    value === `--${name}` && process.argv[index + 1]
+      ? [process.argv[index + 1]]
+      : []
+  );
+}
+
 const project = argument("project");
 const version = argument("version");
-const esp32BuildDirectory = resolve(argument("esp32-build-dir") ?? "");
-const esp32S3BuildDirectory = resolve(argument("esp32-s3-build-dir") ?? "");
 const outputDirectory = resolve(argument("out") ?? "firmware-dist");
-const hardware = argument("hardware") ?? "development-target-unverified";
+const hardware = argumentsFor("hardware");
 const stability = argument("stability") ?? (version?.includes("-") ? "beta" : "stable");
 const buildDate = argument("build-date") ?? new Date().toISOString();
 const sourceCommit = argument("source-commit");
+const releaseNotes = argumentsFor("release-note");
+const requestedTargets = argumentsFor("target");
 
-if (!project || !version || !argument("esp32-build-dir") || !argument("esp32-s3-build-dir")) {
-  throw new Error("Usage: prepare-release.mjs --project <id> --version <semver> --esp32-build-dir <path> --esp32-s3-build-dir <path> [--out <path>] [--hardware <revision>]");
+if (!project || !version) {
+  throw new Error("Usage: prepare-release.mjs --project <id> --version <semver> --target <chip-family:prefix:build-directory> [--target ...] [--hardware <revision>]");
 }
 
 if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
@@ -33,10 +41,40 @@ if (!["beta", "stable"].includes(stability)) {
 
 await mkdir(outputDirectory, { recursive: true });
 const checksumLines = [];
-const targets = [
-  { chipFamily: "ESP32", buildDirectory: esp32BuildDirectory, prefix: "esp32" },
-  { chipFamily: "ESP32-S3", buildDirectory: esp32S3BuildDirectory, prefix: "esp32-s3" }
-];
+const legacyTargets = argument("esp32-build-dir") && argument("esp32-s3-build-dir")
+  ? [
+      `ESP32:esp32:${argument("esp32-build-dir")}`,
+      `ESP32-S3:esp32-s3:${argument("esp32-s3-build-dir")}`
+    ]
+  : [];
+const targetArguments = requestedTargets.length > 0 ? requestedTargets : legacyTargets;
+if (targetArguments.length === 0) {
+  throw new Error("At least one --target is required.");
+}
+
+const allowedChipFamilies = new Set([
+  "ESP32",
+  "ESP32-S2",
+  "ESP32-S3",
+  "ESP32-C3",
+  "ESP32-C6"
+]);
+const targets = targetArguments.map((target) => {
+  const [chipFamily, prefix, ...directoryParts] = target.split(":");
+  const buildDirectory = directoryParts.join(":");
+  if (
+    !allowedChipFamilies.has(chipFamily) ||
+    !/^[a-z0-9-]+$/.test(prefix) ||
+    !buildDirectory
+  ) {
+    throw new Error(`Invalid target "${target}". Expected CHIP-FAMILY:file-prefix:build-directory.`);
+  }
+  return {
+    chipFamily,
+    prefix,
+    buildDirectory: resolve(buildDirectory)
+  };
+});
 const builds = [];
 
 for (const target of targets) {
@@ -70,11 +108,13 @@ const manifest = {
   builds,
   spacepc: {
     projectId: project,
-    hardware: [hardware],
+    hardware: hardware.length > 0 ? hardware : ["development-target-unverified"],
     stability,
     buildDate,
     sourceCommit,
-    releaseNotes: ["Automated dummy firmware pipeline test. No device functionality is included."],
+    releaseNotes: releaseNotes.length > 0
+      ? releaseNotes
+      : ["Firmware release produced by the SpacePC build pipeline."],
     eraseSettings: true
   }
 };

@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "dummy-test-v*"
+      - "ds18b20-mqtt-v*"
 
 permissions:
   contents: write
@@ -24,7 +25,7 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           project="${tag%-v*}"
           version="${tag#"$project-v"}"
-          if [[ "$project" != "dummy-test" ]]; then
+          if [[ "$project" != "dummy-test" && "$project" != "ds18b20-mqtt" ]]; then
             echo "Unsupported project: $project"
             exit 1
           fi
@@ -40,17 +41,35 @@ jobs:
         working-directory: projects/${{ steps.release.outputs.project }}
         run: pio run
       - name: Prepare manifest and checksums
+        shell: bash
         run: |
-          node scripts/prepare-release.mjs \
-            --project "${{ steps.release.outputs.project }}" \
-            --version "${{ steps.release.outputs.version }}" \
-            --esp32-build-dir "projects/${{ steps.release.outputs.project }}/.pio/build/esp32-devkit" \
-            --esp32-s3-build-dir "projects/${{ steps.release.outputs.project }}/.pio/build/esp32-s3-devkit" \
-            --out firmware-dist \
-            --hardware "ESP32 DevKit and ESP32-S3 DevKit development targets (unverified)" \
-            --stability beta \
-            --build-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+          args=(
+            --project "${{ steps.release.outputs.project }}"
+            --version "${{ steps.release.outputs.version }}"
+            --target "ESP32:esp32:projects/${{ steps.release.outputs.project }}/.pio/build/esp32-devkit"
+            --target "ESP32-S3:esp32-s3:projects/${{ steps.release.outputs.project }}/.pio/build/esp32-s3-devkit"
+            --out firmware-dist
+            --build-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             --source-commit "$GITHUB_SHA"
+          )
+          if [[ "${{ steps.release.outputs.project }}" == "dummy-test" ]]; then
+            args+=(
+              --hardware "ESP32 DevKit development target (unverified)"
+              --hardware "ESP32-S3 DevKitC-1 development target (unverified)"
+              --release-note "Automated dummy firmware pipeline test. No device functionality is included."
+            )
+          else
+            args+=(
+              --target "ESP32-S2:esp32-s2:projects/${{ steps.release.outputs.project }}/.pio/build/esp32-s2-devkit"
+              --target "ESP32-C3:esp32-c3:projects/${{ steps.release.outputs.project }}/.pio/build/esp32-c3-devkit"
+              --hardware "Generic ESP32 DevKit build target"
+              --hardware "ESP32-S2 Saola-1 build target"
+              --hardware "ESP32-S3 DevKitC-1 build target"
+              --hardware "ESP32-C3 DevKitM-1 build target"
+              --release-note "DS18B20 temperature sensor with local web setup, MQTT and optional Home Assistant Discovery."
+            )
+          fi
+          node scripts/prepare-release.mjs "${args[@]}"
       - name: Publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}
