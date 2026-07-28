@@ -5,6 +5,7 @@ Shared configuration and connectivity layer for SpacePC ESP32 firmware.
 Every project using this library receives the same:
 
 - protected Wi-Fi setup access point and captive portal;
+- automatic Wi-Fi reconnection and mDNS re-registration;
 - responsive local setup page;
 - persistent device, Wi-Fi and MQTT settings;
 - MQTT state and availability topics;
@@ -64,6 +65,10 @@ missing hardware with `setEntityUnavailable()`.
 
 `publishState()` remains the optional MQTT output. Sensor reads and the native
 Home Assistant API do not depend on an MQTT connection.
+
+The portal retries a lost Wi-Fi connection every ten seconds. After reconnect,
+it stops any fallback setup access point, advertises the SpacePC mDNS service
+again and then allows MQTT to reconnect independently.
 
 When connected to Wi-Fi, every device advertises `_spacepc._tcp.local.` with
 its stable device ID, API version and project ID. The native API endpoints are:
