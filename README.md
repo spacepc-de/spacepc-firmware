@@ -7,7 +7,7 @@ hardware and generic ESP32 development boards.
 
 ```text
 projects/
-  dummy-test/
+  test-firmware/
   ds18b20-mqtt/
 scripts/
   prepare-release.mjs
@@ -15,9 +15,11 @@ lib/
   SpacePCPortal/
 ```
 
-`dummy-test` verifies the build and release pipeline without controlling
-hardware. `ds18b20-mqtt` is a configurable temperature sensor with a local web
-interface, MQTT publishing and optional Home Assistant MQTT Discovery.
+`test-firmware` reads system, memory, flash, runtime and Wi-Fi diagnostic data
+on ESP32, ESP32-S2, ESP32-S3 and ESP32-C3. It exposes the live values on the
+serial console and through an open Wi-Fi captive portal.
+`ds18b20-mqtt` is a configurable temperature sensor with a local web interface,
+MQTT publishing and optional Home Assistant MQTT Discovery.
 
 Functional projects should use `lib/SpacePCPortal` for the shared Wi-Fi setup,
 web interface, MQTT connection, transmission interval and Home Assistant
@@ -30,7 +32,7 @@ Install PlatformIO Core and build one project:
 
 ```sh
 python3 -m pip install platformio==6.1.18
-cd projects/dummy-test
+cd projects/test-firmware
 pio run
 ```
 
@@ -44,11 +46,11 @@ and third-party library versions are pinned for reproducible builds.
 
 ## Firmware releases
 
-Test release tags use `dummy-test-v<semantic-version>`, for example:
+Test firmware release tags use `test-firmware-v<semantic-version>`, for example:
 
 ```sh
-git tag dummy-test-v0.1.0
-git push origin dummy-test-v0.1.0
+git tag test-firmware-v0.1.0
+git push origin test-firmware-v0.1.0
 ```
 
 Functional sensor releases use `ds18b20-mqtt-v<semantic-version>`.
