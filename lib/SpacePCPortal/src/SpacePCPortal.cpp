@@ -66,6 +66,27 @@ bool validFieldKey(const char *key) {
   return true;
 }
 
+bool validEntityId(const char *entityId) {
+  if (!entityId) {
+    return false;
+  }
+  const size_t length = strlen(entityId);
+  if (length == 0 || length > 64) {
+    return false;
+  }
+  for (size_t index = 0; index < length; index += 1) {
+    const char character = entityId[index];
+    if (
+      !isAlphaNumeric(character) &&
+      character != '-' &&
+      character != '_'
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool validEntityPlatform(const char *platform) {
   if (!platform || strlen(platform) == 0) {
     return true;
@@ -169,7 +190,7 @@ bool SpacePCPortal::addHomeAssistantEntity(
 ) {
   if (
     entityCount_ >= maxEntities ||
-    !validFieldKey(entity.objectId) ||
+    !validEntityId(entity.objectId) ||
     !entity.name ||
     !entity.valueTemplate ||
     !validEntityPlatform(entity.platform)
@@ -654,6 +675,14 @@ String SpacePCPortal::renderPage() const {
   );
   page.replace("{{DEVICE_NAME}}", htmlEscape(deviceName_));
   page.replace("{{INTERVAL}}", String(publishIntervalSeconds_));
+  page.replace(
+    "{{PROJECT_SETTINGS_TITLE}}",
+    htmlEscape(
+      config_.projectSettingsTitle
+        ? config_.projectSettingsTitle
+        : "Project settings"
+    )
+  );
   page.replace("{{PROJECT_FIELDS}}", renderProjectFields());
   page.replace("{{WIFI_SSID}}", htmlEscape(wifiSsid_));
   page.replace("{{MQTT_HOST}}", htmlEscape(mqttHost_));
@@ -671,7 +700,7 @@ String SpacePCPortal::renderProjectFields() const {
   String html;
   for (size_t index = 0; index < numberFieldCount_; index += 1) {
     const NumberFieldState &field = numberFields_[index];
-    html += "<label for=\"" + String(field.definition.key) + "\">";
+    html += "<div class=\"field\"><label for=\"" + String(field.definition.key) + "\">";
     html += htmlEscape(field.definition.label);
     html += "</label><input type=\"number\" id=\"" + String(field.definition.key);
     html += "\" name=\"" + String(field.definition.key);
@@ -681,10 +710,11 @@ String SpacePCPortal::renderProjectFields() const {
     if (field.definition.help && strlen(field.definition.help) > 0) {
       html += "<small>" + htmlEscape(field.definition.help) + "</small>";
     }
+    html += "</div>";
   }
   for (size_t index = 0; index < textFieldCount_; index += 1) {
     const TextFieldState &field = textFields_[index];
-    html += "<label for=\"" + String(field.definition.key) + "\">";
+    html += "<div class=\"field\"><label for=\"" + String(field.definition.key) + "\">";
     html += htmlEscape(field.definition.label);
     html += "</label><input type=\"text\" id=\"" + String(field.definition.key);
     html += "\" name=\"" + String(field.definition.key);
@@ -693,16 +723,18 @@ String SpacePCPortal::renderProjectFields() const {
     if (field.definition.help && strlen(field.definition.help) > 0) {
       html += "<small>" + htmlEscape(field.definition.help) + "</small>";
     }
+    html += "</div>";
   }
   for (size_t index = 0; index < checkboxFieldCount_; index += 1) {
     const CheckboxFieldState &field = checkboxFields_[index];
-    html += "<label class=\"check\"><input type=\"checkbox\" name=\"";
+    html += "<div class=\"field\"><label class=\"check\"><input type=\"checkbox\" name=\"";
     html += String(field.definition.key) + "\" value=\"1\" ";
     html += field.value ? "checked" : "";
     html += ">" + htmlEscape(field.definition.label) + "</label>";
     if (field.definition.help && strlen(field.definition.help) > 0) {
       html += "<small>" + htmlEscape(field.definition.help) + "</small>";
     }
+    html += "</div>";
   }
   if (html.isEmpty()) {
     html = "<small>This project has no additional settings.</small>";

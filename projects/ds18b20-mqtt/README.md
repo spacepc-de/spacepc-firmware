@@ -1,7 +1,8 @@
 # ESP32 DS18B20 temperature sensor
 
-This firmware reads one DS18B20 temperature sensor and exposes the result
-through the local SpacePC API. It includes a browser-based configuration page,
+This firmware reads up to two DS18B20 temperature sensors on separate GPIOs and
+exposes each configured sensor through the local SpacePC API. It includes a
+browser-based configuration page,
 automatic discovery by the native SpacePC Home Assistant integration and
 optional MQTT publishing.
 
@@ -31,7 +32,8 @@ DS18B20 in externally powered three-wire mode:
 | --- | --- |
 | GND | GND |
 | VDD | 3.3 V |
-| DATA | Configured GPIO |
+| DATA sensor 1 | Configured sensor 1 GPIO |
+| DATA sensor 2 | Configured sensor 2 GPIO |
 
 Install a **4.7 kΩ pull-up resistor between DATA and 3.3 V**. The firmware does
 not document or enable parasite-power mode. It also enables the ESP32's weak
@@ -39,9 +41,11 @@ internal pull-up for compatibility with short three-wire sensor assemblies,
 but this does not replace the external 4.7 kΩ resistor for a reliable final
 installation. This is a low-voltage project.
 
-The default data pin is GPIO 4. Pin availability and boot-strapping behavior
-differ between ESP32 families and individual boards. Select a safe pin for the
-exact board in the web interface.
+The first data pin defaults to GPIO 4. The second sensor is disabled by default;
+set its GPIO to `-1` to keep it disabled. Each active GPIO needs its own 4.7 kΩ
+pull-up resistor. Pin availability and boot-strapping behavior differ between
+ESP32 families and individual boards. Select safe, distinct pins for the exact
+board in the web interface.
 
 ## First-time setup
 
@@ -49,7 +53,7 @@ exact board in the web interface.
 2. Join the Wi-Fi network `SpacePC-Temp-xxxxxx`.
 3. Use password `spacepcsetup`.
 4. Open `http://192.168.4.1` if the captive portal does not appear.
-5. Enter Wi-Fi, GPIO and MQTT settings, then save.
+5. Enter Wi-Fi, sensor GPIOs, sensor names and optional MQTT settings, then save.
 
 After joining Wi-Fi, the configuration page remains available at the IP shown
 in the serial log and usually at `http://spacepc-xxxxxxxxxxxx.local`.
@@ -70,12 +74,15 @@ No MQTT broker is required for this path.
 The device exposes:
 
 - `GET /api/v1/info` for device, firmware and entity metadata;
-- `GET /api/v1/state` for temperature, availability and diagnostics.
+- `GET /api/v1/state` for each configured temperature, its individual
+  availability and device diagnostics.
 
-If the sensor is disconnected, its entity becomes unavailable. The firmware
-rescans the OneWire bus after failed readings and restores the entity
-automatically after the sensor is reconnected. Wi-Fi and mDNS also recover
-without rebooting the ESP32.
+The first sensor keeps the stable `temperature` entity identifier used by
+firmware 0.1.x. An enabled second sensor uses `temperature_2`. Their configured
+names are exposed to Home Assistant. If one sensor is disconnected, only its
+entity becomes unavailable. The firmware rescans that OneWire bus after failed
+readings and restores the entity automatically after the sensor is reconnected.
+Wi-Fi and mDNS also recover without rebooting the ESP32.
 
 ## MQTT
 
@@ -89,7 +96,7 @@ spacepc/temperature/availability
 State payload:
 
 ```json
-{"temperature":21.50}
+{"temperature":21.50,"temperature_2":19.75}
 ```
 
 When Home Assistant discovery is enabled, the retained sensor configuration is
@@ -118,7 +125,7 @@ pio run -e esp32-s3-devkit
 
 ## Current limitations
 
-- one DS18B20 sensor per device;
+- up to two DS18B20 sensors on separate GPIOs;
 - Celsius output only;
 - no MQTT TLS;
 - no remote firmware update;

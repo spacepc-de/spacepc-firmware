@@ -13,6 +13,7 @@ struct SpacePCPortalConfig {
   const char *firmwareVersion;
   const char *firmwareBuildDate;
   const char *sourceCommit;
+  const char *projectSettingsTitle;
 };
 
 struct SpacePCNumberField {
