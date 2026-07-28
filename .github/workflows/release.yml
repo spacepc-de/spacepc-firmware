@@ -3,7 +3,7 @@ name: Publish firmware release
 on:
   push:
     tags:
-      - "dummy-test-v*"
+      - "test-firmware-v*"
       - "ds18b20-mqtt-v*"
 
 permissions:
@@ -25,7 +25,7 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           project="${tag%-v*}"
           version="${tag#"$project-v"}"
-          if [[ "$project" != "dummy-test" && "$project" != "ds18b20-mqtt" ]]; then
+          if [[ "$project" != "test-firmware" && "$project" != "ds18b20-mqtt" ]]; then
             echo "Unsupported project: $project"
             exit 1
           fi
@@ -52,11 +52,15 @@ jobs:
             --build-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
             --source-commit "$GITHUB_SHA"
           )
-          if [[ "${{ steps.release.outputs.project }}" == "dummy-test" ]]; then
+          if [[ "${{ steps.release.outputs.project }}" == "test-firmware" ]]; then
             args+=(
+              --target "ESP32-S2:esp32-s2:projects/${{ steps.release.outputs.project }}/.pio/build/esp32-s2-devkit"
+              --target "ESP32-C3:esp32-c3:projects/${{ steps.release.outputs.project }}/.pio/build/esp32-c3-devkit"
               --hardware "ESP32 DevKit development target (unverified)"
+              --hardware "ESP32-S2 Saola-1 development target (unverified)"
               --hardware "ESP32-S3 DevKitC-1 development target (unverified)"
-              --release-note "Automated dummy firmware pipeline test. No device functionality is included."
+              --hardware "ESP32-C3 DevKitM-1 development target (unverified)"
+              --release-note "ESP32 diagnostic firmware with serial output and an open Wi-Fi captive portal."
             )
           else
             args+=(
