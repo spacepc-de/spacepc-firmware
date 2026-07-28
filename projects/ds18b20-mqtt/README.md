@@ -4,6 +4,10 @@ This firmware reads one DS18B20 temperature sensor and publishes the result to
 a local MQTT broker. It includes a browser-based configuration page and
 optional Home Assistant MQTT Discovery.
 
+The setup interface, Wi-Fi provisioning, MQTT connection and Home Assistant
+Discovery behavior come from the shared `SpacePCPortal` library. This project
+adds only the DS18B20 GPIO field, temperature reading and temperature entity.
+
 ## Supported build targets
 
 The project is compiled for these generic PlatformIO development-board targets:

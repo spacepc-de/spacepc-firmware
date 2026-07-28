@@ -1,0 +1,7 @@
+{
+  "name": "SpacePCPortal",
+  "version": "0.1.0",
+  "description": "Shared Wi-Fi, MQTT, Home Assistant and web setup portal for SpacePC ESP32 firmware.",
+  "frameworks": "arduino",
+  "platforms": "espressif32"
+}

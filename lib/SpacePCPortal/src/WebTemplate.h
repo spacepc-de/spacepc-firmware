@@ -1,12 +1,12 @@
 #pragma once
 
-const char settingsPage[] PROGMEM = R"HTML(
+const char spacePCPortalPage[] PROGMEM = R"HTML(
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>SpacePC temperature setup</title>
+  <title>{{PROJECT_NAME}} setup</title>
   <style>
     :root{color-scheme:light dark;font-family:system-ui,sans-serif;background:#0b1020;color:#f3f6fa}
     *{box-sizing:border-box}body{margin:0;padding:24px}.wrap{max-width:760px;margin:auto}
@@ -21,19 +21,20 @@ const char settingsPage[] PROGMEM = R"HTML(
   </style>
 </head>
 <body><main class="wrap">
-  <h1>Temperature sensor</h1>
-  <p class="sub">Configure Wi-Fi, DS18B20 and local MQTT. Settings are stored on the ESP32.</p>
+  <h1>{{PROJECT_NAME}}</h1>
+  <p class="sub">Configure this SpacePC device. Settings are stored locally on the ESP32.</p>
   <p id="status" class="status">Loading device status…</p>
   <form method="post" action="/save">
     <section>
       <h2>Device</h2>
       <label for="deviceName">Device name</label>
       <input id="deviceName" name="deviceName" maxlength="48" required value="{{DEVICE_NAME}}">
-      <label for="sensorPin">DS18B20 GPIO</label>
-      <input id="sensorPin" name="sensorPin" type="number" min="0" max="48" required value="{{SENSOR_PIN}}">
-      <small>Use a GPIO available on your exact board. Add a 4.7 kΩ pull-up between DATA and 3.3 V.</small>
       <label for="interval">Transmission interval in seconds</label>
       <input id="interval" name="interval" type="number" min="5" max="86400" required value="{{INTERVAL}}">
+    </section>
+    <section>
+      <h2>Project settings</h2>
+      {{PROJECT_FIELDS}}
     </section>
     <section>
       <h2>Wi-Fi</h2>
@@ -65,8 +66,8 @@ const char settingsPage[] PROGMEM = R"HTML(
 <script>
 fetch('/api/status').then(r=>r.json()).then(s=>{
   const el=document.querySelector('#status');
-  el.textContent=`Sensor: ${s.sensor} · Wi-Fi: ${s.wifi} · MQTT: ${s.mqtt} · IP: ${s.ip}`;
-  el.className=s.sensor==='connected'?'status ok':'status error';
+  el.textContent=`Project: ${s.project} · Wi-Fi: ${s.wifi} · MQTT: ${s.mqtt} · IP: ${s.ip}`;
+  el.className=s.project==='ready'?'status ok':'status error';
 }).catch(()=>document.querySelector('#status').textContent='Status unavailable');
 </script></body></html>
 )HTML";
