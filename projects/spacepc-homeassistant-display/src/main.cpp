@@ -31,12 +31,13 @@ String pendingPayload;
 String currentPayload;
 uint32_t lastRefresh = 0;
 bool displayReady = false;
+uint8_t renderedWidgetCount = 0;
 
 const SpacePCPortalConfig projectConfig = {
   "spacepc-homeassistant-display",
   "Home Assistant e-paper display",
   "Good Display GDEY075Z08 + ESP32-L",
-  "0.1.1",
+  "0.1.2",
   "2026-07-29",
   nullptr,
   "Display"
@@ -181,11 +182,31 @@ void renderGraph(
 ) {
   JsonArrayConst points = widget["points"].as<JsonArrayConst>();
   if (points.size() < 2) {
+    const bool available = widget["available"] | false;
+    const String value = available
+      ? limitedText(widget["value"] | "—", width < 300 ? 9 : 12)
+      : "—";
+    const String unit = limitedText(widget["unit"] | "", 8);
     drawCentered(
-      "Waiting for data",
+      value,
       x + width / 2,
-      y + height / 2 + 12,
-      &FreeSans12pt7b
+      y + height / 2 + 8,
+      &FreeSansBold24pt7b
+    );
+    if (available && !unit.isEmpty()) {
+      drawCentered(
+        unit,
+        x + width / 2,
+        y + height / 2 + 39,
+        &FreeSans12pt7b
+      );
+    }
+    drawCentered(
+      points.size() == 0 ? "Collecting history" : "1 history point",
+      x + width / 2,
+      y + height - 19,
+      &FreeSans9pt7b,
+      GxEPD_RED
     );
     return;
   }
@@ -232,6 +253,7 @@ void renderLayout(const String &payload) {
   }
   JsonArrayConst widgets = document["widgets"].as<JsonArrayConst>();
   const uint8_t count = min(static_cast<uint8_t>(widgets.size()), maximumWidgets);
+  renderedWidgetCount = count;
   uint8_t columns = 3;
   if (count <= 1) {
     columns = 1;
@@ -242,22 +264,48 @@ void renderLayout(const String &payload) {
   const int16_t contentHeight = screenHeight - dashboardHeaderHeight;
   const int16_t cellWidth = screenWidth / columns;
   const int16_t cellHeight = contentHeight / rows;
+  const String dashboardTitle = limitedText(
+    document["layout"]["title"] | "Home",
+    24
+  );
+  const String updatedAt = limitedText(
+    document["layout"]["updated_at"] | "--:--",
+    5
+  );
 
   display.setFullWindow();
   display.firstPage();
   do {
     display.fillScreen(GxEPD_WHITE);
     display.fillRect(0, 0, screenWidth, 4, GxEPD_RED);
-    drawText("SPACEPC", 14, 31, &FreeSansBold12pt7b);
-    display.fillCircle(119, 24, 4, GxEPD_RED);
-    drawText("HOME ASSISTANT DISPLAY", 134, 30, &FreeSans9pt7b);
+    drawText(dashboardTitle, 14, 31, &FreeSansBold12pt7b);
     drawRightAligned(
-      String(count) + (count == 1 ? " WIDGET" : " WIDGETS"),
+      "UPDATED " + updatedAt,
       screenWidth - 14,
       30,
       &FreeSansBold9pt7b,
       GxEPD_RED
     );
+    if (count == 0) {
+      drawCentered(
+        "No display slots configured",
+        screenWidth / 2,
+        222,
+        &FreeSansBold18pt7b
+      );
+      drawCentered(
+        "Open the SpacePC integration in Home Assistant",
+        screenWidth / 2,
+        272,
+        &FreeSans12pt7b
+      );
+      drawCentered(
+        "and select Configure.",
+        screenWidth / 2,
+        307,
+        &FreeSans12pt7b
+      );
+    }
     for (uint8_t index = 0; index < count; index += 1) {
       JsonObjectConst widget = widgets[index];
       const int16_t x = (index % columns) * cellWidth + cardGap / 2;
@@ -290,6 +338,10 @@ void renderLayout(const String &payload) {
   } while (display.nextPage());
   lastRefresh = millis();
   currentPayload = payload;
+  Serial.printf(
+    "Rendered Home Assistant layout with %u widget(s).\n",
+    static_cast<unsigned>(count)
+  );
 }
 
 bool acceptDisplayUpdate(const String &payload, String &errorMessage) {
@@ -316,10 +368,20 @@ bool acceptDisplayUpdate(const String &payload, String &errorMessage) {
     }
   }
   pendingPayload = payload;
+  Serial.printf(
+    "Accepted Home Assistant display update (%u bytes, %u widget(s)).\n",
+    static_cast<unsigned>(payload.length()),
+    static_cast<unsigned>(widgets.size())
+  );
   return true;
 }
 
-void renderStartup() {
+void renderConnectionStatus() {
+  const bool connected = WiFi.status() == WL_CONNECTED;
+  const String networkName = connected ? WiFi.SSID() : WiFi.softAPSSID();
+  const String ipAddress = connected
+    ? WiFi.localIP().toString()
+    : WiFi.softAPIP().toString();
   display.setFullWindow();
   display.firstPage();
   do {
@@ -329,21 +391,32 @@ void renderStartup() {
     display.fillCircle(244, 70, 7, GxEPD_RED);
     drawText("HOME ASSISTANT DISPLAY", 49, 128, &FreeSansBold12pt7b, GxEPD_RED);
     display.drawLine(49, 154, 750, 154, GxEPD_BLACK);
-    drawText("Ready for configuration", 49, 224, &FreeSansBold18pt7b);
     drawText(
-      "Add this device in Home Assistant, then choose",
+      connected ? "Wi-Fi connected" : "Wi-Fi setup required",
       49,
-      271,
-      &FreeSans12pt7b
+      218,
+      &FreeSansBold18pt7b
     );
+    drawText("Network", 49, 269, &FreeSansBold9pt7b, GxEPD_RED);
+    drawText(limitedText(networkName.c_str(), 34), 156, 269, &FreeSans12pt7b);
+    drawText("IP address", 49, 309, &FreeSansBold9pt7b, GxEPD_RED);
+    drawText(ipAddress, 156, 309, &FreeSans12pt7b);
     drawText(
-      "entities and widgets under Configure.",
+      connected
+        ? "Waiting for display data from Home Assistant"
+        : "Connect to this setup network and open 192.168.4.1",
       49,
-      306,
+      365,
       &FreeSans12pt7b
     );
     drawText("Local only  /  spacepc.dev", 49, 428, &FreeSans9pt7b);
   } while (display.nextPage());
+  Serial.printf(
+    "Display network status: %s, SSID: %s, IP: %s\n",
+    connected ? "connected" : "setup access point",
+    networkName.c_str(),
+    ipAddress.c_str()
+  );
 }
 }
 
@@ -353,9 +426,9 @@ void setup() {
   display.init(115200, true, 2, false);
   display.setRotation(0);
   displayReady = true;
-  renderStartup();
   portal.enableDisplayApi(displayCapabilities, acceptDisplayUpdate);
   portal.begin(projectConfig);
+  renderConnectionStatus();
   portal.setProjectStatus("waiting for Home Assistant");
 }
 
@@ -369,6 +442,10 @@ void loop() {
     const String payload = pendingPayload;
     pendingPayload = "";
     renderLayout(payload);
-    portal.setProjectStatus("display updated");
+    portal.setProjectStatus(
+      renderedWidgetCount > 0
+        ? "display updated"
+        : "no display slots configured"
+    );
   }
 }
