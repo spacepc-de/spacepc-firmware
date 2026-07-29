@@ -146,6 +146,7 @@ class SpacePCPortal {
   bool wifiConnected_;
   bool mdnsActive_;
   uint32_t lastWifiAttempt_;
+  uint32_t wifiDisconnectedSince_;
   uint32_t lastMqttAttempt_;
   uint32_t lastPublish_;
 

@@ -37,7 +37,7 @@ const SpacePCPortalConfig projectConfig = {
   "spacepc-homeassistant-display",
   "Home Assistant e-paper display",
   "Good Display GDEY075Z08 + ESP32-L",
-  "0.1.2",
+  "0.1.3",
   "2026-07-29",
   nullptr,
   "Display"
@@ -376,12 +376,9 @@ bool acceptDisplayUpdate(const String &payload, String &errorMessage) {
   return true;
 }
 
-void renderConnectionStatus() {
-  const bool connected = WiFi.status() == WL_CONNECTED;
-  const String networkName = connected ? WiFi.SSID() : WiFi.softAPSSID();
-  const String ipAddress = connected
-    ? WiFi.localIP().toString()
-    : WiFi.softAPIP().toString();
+void renderSetupStatus() {
+  const String networkName = WiFi.softAPSSID();
+  const String ipAddress = WiFi.softAPIP().toString();
   display.setFullWindow();
   display.firstPage();
   do {
@@ -392,7 +389,7 @@ void renderConnectionStatus() {
     drawText("HOME ASSISTANT DISPLAY", 49, 128, &FreeSansBold12pt7b, GxEPD_RED);
     display.drawLine(49, 154, 750, 154, GxEPD_BLACK);
     drawText(
-      connected ? "Wi-Fi connected" : "Wi-Fi setup required",
+      "Wi-Fi setup required",
       49,
       218,
       &FreeSansBold18pt7b
@@ -402,9 +399,7 @@ void renderConnectionStatus() {
     drawText("IP address", 49, 309, &FreeSansBold9pt7b, GxEPD_RED);
     drawText(ipAddress, 156, 309, &FreeSans12pt7b);
     drawText(
-      connected
-        ? "Waiting for display data from Home Assistant"
-        : "Connect to this setup network and open 192.168.4.1",
+      "Connect to this setup network and open 192.168.4.1",
       49,
       365,
       &FreeSans12pt7b
@@ -413,7 +408,7 @@ void renderConnectionStatus() {
   } while (display.nextPage());
   Serial.printf(
     "Display network status: %s, SSID: %s, IP: %s\n",
-    connected ? "connected" : "setup access point",
+    "setup access point",
     networkName.c_str(),
     ipAddress.c_str()
   );
@@ -428,7 +423,9 @@ void setup() {
   displayReady = true;
   portal.enableDisplayApi(displayCapabilities, acceptDisplayUpdate);
   portal.begin(projectConfig);
-  renderConnectionStatus();
+  if (WiFi.status() != WL_CONNECTED) {
+    renderSetupStatus();
+  }
   portal.setProjectStatus("waiting for Home Assistant");
 }
 
