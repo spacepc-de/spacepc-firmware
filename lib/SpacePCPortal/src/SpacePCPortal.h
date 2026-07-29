@@ -50,6 +50,11 @@ struct SpacePCHomeAssistantEntity {
   const char *platform;
 };
 
+using SpacePCDisplayUpdateHandler = bool (*)(
+  const String &payload,
+  String &errorMessage
+);
+
 class SpacePCPortal {
  public:
   SpacePCPortal();
@@ -58,6 +63,10 @@ class SpacePCPortal {
   bool addTextField(const SpacePCTextField &field);
   bool addCheckboxField(const SpacePCCheckboxField &field);
   bool addHomeAssistantEntity(const SpacePCHomeAssistantEntity &entity);
+  void enableDisplayApi(
+    const String &capabilitiesJson,
+    SpacePCDisplayUpdateHandler updateHandler
+  );
 
   void begin(const SpacePCPortalConfig &config);
   void loop();
@@ -131,6 +140,8 @@ class SpacePCPortal {
   String settingsNamespace_;
   String accessPointName_;
   String projectStatus_;
+  String displayCapabilitiesJson_;
+  SpacePCDisplayUpdateHandler displayUpdateHandler_;
   bool accessPointActive_;
   bool wifiConnected_;
   bool mdnsActive_;
@@ -154,6 +165,7 @@ class SpacePCPortal {
   void handleStatus();
   void handleApiInfo();
   void handleApiState();
+  void handleDisplayUpdate();
   void redirectToPortal();
 
   void startMdns();
