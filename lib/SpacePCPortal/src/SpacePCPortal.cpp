@@ -8,6 +8,7 @@
 namespace {
 constexpr uint32_t wifiConnectTimeoutMs = 20000;
 constexpr uint32_t wifiRetryIntervalMs = 10000;
+constexpr uint32_t wifiAccessPointFallbackMs = 60000;
 constexpr uint32_t mqttRetryIntervalMs = 5000;
 constexpr char setupAccessPointPassword[] = "spacepcsetup";
 constexpr char localApiPath[] = "/api/v1";
@@ -135,6 +136,7 @@ SpacePCPortal::SpacePCPortal()
     wifiConnected_(false),
     mdnsActive_(false),
     lastWifiAttempt_(0),
+    wifiDisconnectedSince_(0),
     lastMqttAttempt_(0),
     lastPublish_(0) {}
 
@@ -493,6 +495,7 @@ void SpacePCPortal::connectWifi() {
 void SpacePCPortal::maintainWifi() {
   const bool connected = WiFi.status() == WL_CONNECTED;
   if (connected) {
+    wifiDisconnectedSince_ = 0;
     if (wifiConnected_) {
       return;
     }
@@ -509,6 +512,7 @@ void SpacePCPortal::maintainWifi() {
 
   if (wifiConnected_) {
     wifiConnected_ = false;
+    wifiDisconnectedSince_ = max<uint32_t>(millis(), 1);
     if (mdnsActive_) {
       MDNS.end();
       mdnsActive_ = false;
@@ -517,6 +521,14 @@ void SpacePCPortal::maintainWifi() {
       mqttClient_.disconnect();
     }
     Serial.println("Wi-Fi disconnected.");
+  }
+
+  if (
+    !wifiSsid_.isEmpty() &&
+    wifiDisconnectedSince_ != 0 &&
+    millis() - wifiDisconnectedSince_ >= wifiAccessPointFallbackMs
+  ) {
+    startAccessPoint();
   }
 
   if (
