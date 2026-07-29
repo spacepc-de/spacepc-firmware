@@ -26,3 +26,6 @@ jobs:
       - name: Compile DS18B20 MQTT sensor
         working-directory: projects/ds18b20-mqtt
         run: pio run
+      - name: Compile Home Assistant display
+        working-directory: projects/spacepc-homeassistant-display
+        run: pio run
