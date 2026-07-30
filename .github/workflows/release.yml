@@ -6,6 +6,7 @@ on:
       - "dummy-test-v*"
       - "ds18b20-mqtt-v*"
       - "spacepc-homeassistant-display-v*"
+      - "spacepc-weather-display-v*"
 
 permissions:
   contents: write
@@ -26,7 +27,7 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           project="${tag%-v*}"
           version="${tag#"$project-v"}"
-          if [[ "$project" != "dummy-test" && "$project" != "ds18b20-mqtt" && "$project" != "spacepc-homeassistant-display" ]]; then
+          if [[ "$project" != "dummy-test" && "$project" != "ds18b20-mqtt" && "$project" != "spacepc-homeassistant-display" && "$project" != "spacepc-weather-display" ]]; then
             echo "Unsupported project: $project"
             exit 1
           fi
@@ -71,11 +72,17 @@ jobs:
               --hardware "ESP32-C3 DevKitM-1 build target"
               --release-note "DS18B20 temperature sensor with local web setup, MQTT and optional Home Assistant Discovery."
             )
-          else
+          elif [[ "${{ steps.release.outputs.project }}" == "spacepc-homeassistant-display" ]]; then
             args+=(
               --target "ESP32:esp32:projects/${{ steps.release.outputs.project }}/.pio/build/gooddisplay-esp32-l"
               --hardware "Good Display ESP32-L with DESPI-C02 and GDEY075Z08"
               --release-note "Home Assistant-managed 7.5-inch e-paper display with value, status and graph widgets."
+            )
+          else
+            args+=(
+              --target "ESP32:esp32:projects/${{ steps.release.outputs.project }}/.pio/build/esp32-l"
+              --hardware "Good Display ESP32-L with DESPI-C02 and GDEY075Z08"
+              --release-note "OpenWeatherMap weather dashboard with captive-portal setup, five-day forecast and configurable deep-sleep interval."
             )
           fi
           node scripts/prepare-release.mjs "${args[@]}"
