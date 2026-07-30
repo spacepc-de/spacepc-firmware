@@ -29,3 +29,6 @@ jobs:
       - name: Compile Home Assistant display
         working-directory: projects/spacepc-homeassistant-display
         run: pio run
+      - name: Compile weather display
+        working-directory: projects/spacepc-weather-display
+        run: pio run
