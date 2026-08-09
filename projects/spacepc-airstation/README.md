@@ -1,4 +1,4 @@
-# SEN66 P4 Air Dashboard
+# SpacePC Airstation
 
 Landscape LVGL dashboard for the Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3 and
 Sensirion SEN66. It displays CO2, PM2.5, PM10, VOC, NOx, temperature and

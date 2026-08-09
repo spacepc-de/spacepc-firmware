@@ -1,15 +1,15 @@
-name: Compile SEN66 P4 Airstation
+name: Compile SpacePC Airstation
 
 on:
   push:
     branches: [main]
     paths:
-      - "projects/sen66-p4-air-dashboard/**"
-      - ".github/workflows/sen66-p4-ci.yml"
+      - "projects/spacepc-airstation/**"
+      - ".github/workflows/spacepc-airstation-ci.yml"
   pull_request:
     paths:
-      - "projects/sen66-p4-air-dashboard/**"
-      - ".github/workflows/sen66-p4-ci.yml"
+      - "projects/spacepc-airstation/**"
+      - ".github/workflows/spacepc-airstation-ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -25,5 +25,5 @@ jobs:
         with:
           esp_idf_version: v5.5
           target: esp32p4
-          path: projects/sen66-p4-air-dashboard
+          path: projects/spacepc-airstation
           command: idf.py build
