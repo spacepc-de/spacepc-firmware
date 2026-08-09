@@ -16,8 +16,7 @@
 
 #define BLOCK_FRAMES 512
 #define INPUT_CHANNELS 2
-#define MIC_CHANNEL 0
-#define MIC_GAIN_DB 30.0f
+#define MIC_GAIN_DB 24.0f
 
 static const char *TAG = "audio_recorder";
 static esp_codec_dev_handle_t s_mic;
@@ -25,7 +24,6 @@ static SemaphoreHandle_t s_lock;
 static recorder_status_t s_status;
 static wav_writer_t s_writer;
 static int16_t s_stereo[BLOCK_FRAMES * INPUT_CHANNELS];
-static int16_t s_mono[BLOCK_FRAMES];
 static uint64_t s_recorded_samples;
 
 static void set_error(const char *message)
@@ -40,7 +38,7 @@ static bool next_filename(char *path, size_t size)
 {
     struct stat st;
     for (unsigned i = 1; i <= 9999; ++i) {
-        snprintf(path, size, BSP_SD_MOUNT_POINT "/SN%04u.WAV", i);
+        snprintf(path, size, BSP_SD_MOUNT_POINT "/ST%04u.WAV", i);
         if (stat(path, &st) != 0) return true;
     }
     return false;
@@ -57,28 +55,35 @@ static void recorder_task(void *arg)
             continue;
         }
 
-        double energy = 0;
-        int peak = 0;
+        double energy[INPUT_CHANNELS] = {0};
+        int peak[INPUT_CHANNELS] = {0};
         for (size_t i = 0; i < BLOCK_FRAMES; ++i) {
-            int sample = s_stereo[i * INPUT_CHANNELS + MIC_CHANNEL];
-            s_mono[i] = sample;
-            energy += (double)sample * sample;
-            int magnitude = sample < 0 ? -sample : sample;
-            if (magnitude > peak) peak = magnitude;
+            for (size_t channel = 0; channel < INPUT_CHANNELS; ++channel) {
+                int sample = s_stereo[i * INPUT_CHANNELS + channel];
+                energy[channel] += (double)sample * sample;
+                int magnitude = sample < 0 ? -sample : sample;
+                if (magnitude > peak[channel]) peak[channel] = magnitude;
+            }
         }
-        float rms = sqrtf((float)(energy / BLOCK_FRAMES));
-        float rms_dbfs = rms > 0 ? 20.0f * log10f(rms / 32768.0f) : -96.0f;
-        float peak_dbfs = peak > 0 ? 20.0f * log10f(peak / 32768.0f) : -96.0f;
+        float rms_dbfs[INPUT_CHANNELS];
+        float peak_dbfs[INPUT_CHANNELS];
+        for (size_t channel = 0; channel < INPUT_CHANNELS; ++channel) {
+            float rms = sqrtf((float)(energy[channel] / BLOCK_FRAMES));
+            rms_dbfs[channel] = rms > 0 ? 20.0f * log10f(rms / 32768.0f) : -96.0f;
+            peak_dbfs[channel] = peak[channel] > 0 ? 20.0f * log10f(peak[channel] / 32768.0f) : -96.0f;
+        }
 
         xSemaphoreTake(s_lock, portMAX_DELAY);
-        s_status.rms_dbfs = rms_dbfs;
-        s_status.peak_dbfs = peak_dbfs;
+        s_status.rms_dbfs = rms_dbfs[0];
+        s_status.peak_dbfs = peak_dbfs[0];
+        s_status.rms_dbfs_ch2 = rms_dbfs[1];
+        s_status.peak_dbfs_ch2 = peak_dbfs[1];
         if (s_status.recording) {
-            if (!wav_writer_write(&s_writer, s_mono, BLOCK_FRAMES)) {
+            if (!wav_writer_write(&s_writer, s_stereo, BLOCK_FRAMES * INPUT_CHANNELS)) {
                 s_status.recording = false;
                 s_status.dropped_blocks++;
                 strlcpy(s_status.error, "SD write failed; recording stopped", sizeof(s_status.error));
-                wav_writer_close(&s_writer, RECORDER_SAMPLE_RATE);
+                wav_writer_close(&s_writer, RECORDER_SAMPLE_RATE, INPUT_CHANNELS);
             } else {
                 s_recorded_samples += BLOCK_FRAMES;
                 s_status.elapsed_seconds = s_recorded_samples / RECORDER_SAMPLE_RATE;
@@ -124,6 +129,8 @@ esp_err_t audio_recorder_init(void)
     s_status.ready = true;
     s_status.rms_dbfs = -96.0f;
     s_status.peak_dbfs = -96.0f;
+    s_status.rms_dbfs_ch2 = -96.0f;
+    s_status.peak_dbfs_ch2 = -96.0f;
     if (xTaskCreatePinnedToCore(recorder_task, "audio_capture", 6144, NULL, 12, NULL, 1) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
@@ -139,7 +146,7 @@ esp_err_t audio_recorder_start(void)
 
     char path[sizeof(s_status.filename)];
     if (!next_filename(path, sizeof(path))) return ESP_ERR_NOT_FOUND;
-    if (!wav_writer_open(&s_writer, path, RECORDER_SAMPLE_RATE)) {
+    if (!wav_writer_open(&s_writer, path, RECORDER_SAMPLE_RATE, INPUT_CHANNELS)) {
         char message[96];
         snprintf(message, sizeof(message), "Cannot create WAV: %s", strerror(errno));
         set_error(message);
@@ -162,7 +169,7 @@ esp_err_t audio_recorder_stop(void)
     xSemaphoreTake(s_lock, portMAX_DELAY);
     bool was_recording = s_status.recording;
     s_status.recording = false;
-    bool ok = was_recording && wav_writer_close(&s_writer, RECORDER_SAMPLE_RATE);
+    bool ok = was_recording && wav_writer_close(&s_writer, RECORDER_SAMPLE_RATE, INPUT_CHANNELS);
     xSemaphoreGive(s_lock);
     if (!was_recording) return ESP_ERR_INVALID_STATE;
     ESP_LOGI(TAG, "Recording finalized (%lu bytes)", (unsigned long)s_writer.data_bytes);
@@ -175,6 +182,8 @@ void audio_recorder_get_status(recorder_status_t *status)
         memset(status, 0, sizeof(*status));
         status->rms_dbfs = -96.0f;
         status->peak_dbfs = -96.0f;
+        status->rms_dbfs_ch2 = -96.0f;
+        status->peak_dbfs_ch2 = -96.0f;
         return;
     }
     xSemaphoreTake(s_lock, portMAX_DELAY);

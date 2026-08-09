@@ -12,6 +12,8 @@ typedef struct {
     bool sd_mounted;
     float rms_dbfs;
     float peak_dbfs;
+    float rms_dbfs_ch2;
+    float peak_dbfs_ch2;
     uint32_t elapsed_seconds;
     uint32_t dropped_blocks;
     char filename[64];

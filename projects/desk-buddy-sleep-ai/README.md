@@ -8,7 +8,7 @@ This is not a medical device and does not diagnose sleep apnea or sleep disorder
 The current firmware is deliberately not an ML classifier yet. It validates the final hardware data path:
 
 - onboard ES7210 microphone input
-- 16 kHz, 16-bit mono PCM
+- 16 kHz, 16-bit stereo PCM (Mic 1 left, Mic 2 right)
 - FAT32 microSD storage
 - valid WAV header finalized when recording stops
 - touch-controlled start/stop
@@ -16,9 +16,9 @@ The current firmware is deliberately not an ML classifier yet. It validates the 
 - no Wi-Fi, cloud upload, or permanent background recording
 
 Insert a FAT32 microSD card before booting. Tap **Start recording**, generate the test audio, then tap
-**Stop & save** before removing the card. Files are named `/SN0001.WAV` through
-`/SN9999.WAV`. The first ES7210 channel is selected; channel comparison and configurable gain
-are intentionally left for the hardware measurement pass.
+**Stop & save** before removing the card. Files are named `/ST0001.WAV` through
+`/ST9999.WAV`. Mic 1 is the left channel and Mic 2 is the right channel, allowing a synchronized
+signal-to-noise and sensitivity comparison. Input gain is set conservatively to 24 dB.
 
 ## Build
 

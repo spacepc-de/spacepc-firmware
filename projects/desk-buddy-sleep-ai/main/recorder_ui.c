@@ -9,6 +9,7 @@ static lv_obj_t *s_state;
 static lv_obj_t *s_time;
 static lv_obj_t *s_level;
 static lv_obj_t *s_meter;
+static lv_obj_t *s_meter_ch2;
 static lv_obj_t *s_file;
 static lv_obj_t *s_error;
 static lv_obj_t *s_button;
@@ -32,11 +33,13 @@ static void refresh(lv_timer_t *timer)
     snprintf(text, sizeof(text), "%02lu:%02lu", (unsigned long)(status.elapsed_seconds / 60),
              (unsigned long)(status.elapsed_seconds % 60));
     lv_label_set_text(s_time, text);
-    snprintf(text, sizeof(text), "RMS %.1f dBFS   Peak %.1f dBFS", status.rms_dbfs, status.peak_dbfs);
+    snprintf(text, sizeof(text), "MIC 1  %.1f dBFS          MIC 2  %.1f dBFS", status.rms_dbfs, status.rms_dbfs_ch2);
     lv_label_set_text(s_level, text);
     int meter = (int)((status.rms_dbfs + 72.0f) * 100.0f / 72.0f);
     lv_bar_set_value(s_meter, LV_CLAMP(0, meter, 100), true);
-    lv_label_set_text(s_file, status.filename[0] ? status.filename : "16 kHz / 16-bit / mono WAV");
+    int meter_ch2 = (int)((status.rms_dbfs_ch2 + 72.0f) * 100.0f / 72.0f);
+    lv_bar_set_value(s_meter_ch2, LV_CLAMP(0, meter_ch2, 100), true);
+    lv_label_set_text(s_file, status.filename[0] ? status.filename : "16 kHz / 16-bit / stereo WAV");
     lv_label_set_text(s_error, status.error);
     lv_obj_t *label = lv_obj_get_child(s_button, 0);
     lv_label_set_text(label, status.recording ? "STOP & SAVE" : "START RECORDING");
@@ -71,18 +74,27 @@ void recorder_ui_create(void)
     lv_obj_align(s_time, LV_ALIGN_CENTER, 0, -70);
 
     s_meter = lv_bar_create(screen);
-    lv_obj_set_size(s_meter, 650, 24);
-    lv_obj_align(s_meter, LV_ALIGN_CENTER, 0, 5);
+    lv_obj_set_size(s_meter, 650, 14);
+    lv_obj_align(s_meter, LV_ALIGN_CENTER, 0, -3);
     lv_obj_set_style_radius(s_meter, 12, LV_PART_MAIN);
     lv_obj_set_style_radius(s_meter, 12, LV_PART_INDICATOR);
     lv_obj_set_style_bg_color(s_meter, lv_color_hex(0x1b2033), LV_PART_MAIN);
     lv_obj_set_style_bg_color(s_meter, lv_color_hex(0x54d6c5), LV_PART_INDICATOR);
     lv_bar_set_range(s_meter, 0, 100);
 
+    s_meter_ch2 = lv_bar_create(screen);
+    lv_obj_set_size(s_meter_ch2, 650, 14);
+    lv_obj_align(s_meter_ch2, LV_ALIGN_CENTER, 0, 19);
+    lv_obj_set_style_radius(s_meter_ch2, 7, LV_PART_MAIN);
+    lv_obj_set_style_radius(s_meter_ch2, 7, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(s_meter_ch2, lv_color_hex(0x1b2033), LV_PART_MAIN);
+    lv_obj_set_style_bg_color(s_meter_ch2, lv_color_hex(0x8c83ff), LV_PART_INDICATOR);
+    lv_bar_set_range(s_meter_ch2, 0, 100);
+
     s_level = lv_label_create(screen);
-    lv_label_set_text(s_level, "RMS -96.0 dBFS   Peak -96.0 dBFS");
+    lv_label_set_text(s_level, "MIC 1  -96.0 dBFS          MIC 2  -96.0 dBFS");
     lv_obj_set_style_text_color(s_level, lv_color_hex(0xaab0c5), 0);
-    lv_obj_align(s_level, LV_ALIGN_CENTER, 0, 43);
+    lv_obj_align(s_level, LV_ALIGN_CENTER, 0, 51);
 
     s_button = lv_button_create(screen);
     lv_obj_set_size(s_button, 270, 66);
