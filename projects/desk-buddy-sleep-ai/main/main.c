@@ -3,6 +3,7 @@
 #include "bsp/display.h"
 #include "esp_log.h"
 #include "recorder_ui.h"
+#include "snore_classifier.h"
 
 void app_main(void)
 {
@@ -14,6 +15,9 @@ void app_main(void)
     };
     bsp_display_start_with_config(&display_config);
     bsp_display_backlight_on();
+
+    esp_err_t model_err = snore_classifier_init();
+    ESP_LOGI("sleep_ai", "Classifier: %s", esp_err_to_name(model_err));
 
     bsp_display_lock(-1);
     recorder_ui_create();
