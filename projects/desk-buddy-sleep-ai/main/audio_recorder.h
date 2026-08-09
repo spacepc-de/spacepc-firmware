@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include "esp_err.h"
 
@@ -20,7 +21,10 @@ typedef struct {
     char error[96];
 } recorder_status_t;
 
+typedef void (*audio_pcm_callback_t)(const int16_t *stereo_samples, size_t frame_count, void *context);
+
 esp_err_t audio_recorder_init(void);
 esp_err_t audio_recorder_start(void);
 esp_err_t audio_recorder_stop(void);
 void audio_recorder_get_status(recorder_status_t *status);
+void audio_recorder_set_pcm_callback(audio_pcm_callback_t callback, void *context);

@@ -25,6 +25,8 @@ static recorder_status_t s_status;
 static wav_writer_t s_writer;
 static int16_t s_stereo[BLOCK_FRAMES * INPUT_CHANNELS];
 static uint64_t s_recorded_samples;
+static audio_pcm_callback_t s_pcm_callback;
+static void *s_pcm_context;
 
 static void set_error(const char *message)
 {
@@ -90,7 +92,14 @@ static void recorder_task(void *arg)
             }
         }
         xSemaphoreGive(s_lock);
+        if (s_pcm_callback) s_pcm_callback(s_stereo, BLOCK_FRAMES, s_pcm_context);
     }
+}
+
+void audio_recorder_set_pcm_callback(audio_pcm_callback_t callback, void *context)
+{
+    s_pcm_context = context;
+    s_pcm_callback = callback;
 }
 
 esp_err_t audio_recorder_init(void)

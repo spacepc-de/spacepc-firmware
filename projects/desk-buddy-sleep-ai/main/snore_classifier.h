@@ -5,6 +5,10 @@
 #include <stdint.h>
 #include "esp_err.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     bool model_available;
     const char *model_name;
@@ -16,3 +20,7 @@ esp_err_t snore_classifier_init(void);
 void snore_classifier_get_info(snore_classifier_info_t *info);
 esp_err_t snore_classifier_predict(const int16_t *mono_samples, size_t sample_count,
                                    float *snore_probability);
+
+#ifdef __cplusplus
+}
+#endif

@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "lvgl.h"
 #include "snore_classifier.h"
+#include "sleep_engine.h"
 
 enum { PAGE_MONITOR, PAGE_SUMMARY, PAGE_HISTORY, PAGE_RECORDER, PAGE_SETTINGS, PAGE_COUNT };
 
@@ -20,9 +21,23 @@ static lv_obj_t *s_record_button;
 static lv_obj_t *s_threshold_value;
 static lv_obj_t *s_brightness_value;
 static lv_obj_t *s_schedule_value;
+static lv_obj_t *s_monitor_ring;
+static lv_obj_t *s_monitor_probability;
+static lv_obj_t *s_monitor_state;
+static lv_obj_t *s_monitor_model;
+static lv_obj_t *s_monitor_button;
 static app_settings_t s_settings;
 
 static void open_page(int page);
+
+static void monitor_button_event(lv_event_t *event)
+{
+    (void)event;
+    sleep_engine_status_t status;
+    sleep_engine_get_status(&status);
+    esp_err_t err = sleep_engine_set_monitoring(!status.monitoring);
+    if (err != ESP_OK) ESP_LOGW("sleep_ui", "Monitoring toggle failed: %s", esp_err_to_name(err));
+}
 
 static lv_obj_t *label(lv_obj_t *parent, const char *text, const lv_font_t *font, uint32_t color)
 {
@@ -89,23 +104,23 @@ static void create_monitor(void)
 {
     lv_obj_t *screen = make_screen(PAGE_MONITOR, "Sleep monitoring", "Local audio analysis - no cloud recording");
     lv_obj_t *hero = card(screen, 28, 143, 360, 306);
-    lv_obj_t *ring = lv_arc_create(hero);
-    lv_obj_set_size(ring, 205, 205);
-    lv_obj_align(ring, LV_ALIGN_TOP_MID, 0, 4);
-    lv_arc_set_rotation(ring, 135);
-    lv_arc_set_bg_angles(ring, 0, 270);
-    lv_arc_set_value(ring, 0);
-    lv_obj_remove_style(ring, NULL, LV_PART_KNOB);
-    lv_obj_set_style_arc_width(ring, 16, LV_PART_MAIN);
-    lv_obj_set_style_arc_width(ring, 16, LV_PART_INDICATOR);
-    lv_obj_set_style_arc_color(ring, lv_color_hex(0x283149), LV_PART_MAIN);
-    lv_obj_set_style_arc_color(ring, lv_color_hex(0x63e2c6), LV_PART_INDICATOR);
-    lv_obj_t *prob = label(hero, "--%", &lv_font_montserrat_48, 0xf8f9ff);
-    lv_obj_align(prob, LV_ALIGN_TOP_MID, 0, 77);
+    s_monitor_ring = lv_arc_create(hero);
+    lv_obj_set_size(s_monitor_ring, 205, 205);
+    lv_obj_align(s_monitor_ring, LV_ALIGN_TOP_MID, 0, 4);
+    lv_arc_set_rotation(s_monitor_ring, 135);
+    lv_arc_set_bg_angles(s_monitor_ring, 0, 270);
+    lv_arc_set_value(s_monitor_ring, 0);
+    lv_obj_remove_style(s_monitor_ring, NULL, LV_PART_KNOB);
+    lv_obj_set_style_arc_width(s_monitor_ring, 16, LV_PART_MAIN);
+    lv_obj_set_style_arc_width(s_monitor_ring, 16, LV_PART_INDICATOR);
+    lv_obj_set_style_arc_color(s_monitor_ring, lv_color_hex(0x283149), LV_PART_MAIN);
+    lv_obj_set_style_arc_color(s_monitor_ring, lv_color_hex(0x63e2c6), LV_PART_INDICATOR);
+    s_monitor_probability = label(hero, "--%", &lv_font_montserrat_48, 0xf8f9ff);
+    lv_obj_align(s_monitor_probability, LV_ALIGN_TOP_MID, 0, 77);
     lv_obj_t *caption = label(hero, "SNORE PROBABILITY", &lv_font_montserrat_14, 0x8992aa);
     lv_obj_align(caption, LV_ALIGN_TOP_MID, 0, 139);
-    lv_obj_t *model = label(hero, "MODEL NOT INSTALLED", &lv_font_montserrat_18, 0xffc46b);
-    lv_obj_align(model, LV_ALIGN_BOTTOM_MID, 0, -28);
+    s_monitor_model = label(hero, "MODEL NOT INSTALLED", &lv_font_montserrat_18, 0xffc46b);
+    lv_obj_align(s_monitor_model, LV_ALIGN_BOTTOM_MID, 0, -28);
 
     lv_obj_t *status = card(screen, 410, 143, 362, 144);
     lv_obj_t *dot = lv_obj_create(status);
@@ -114,8 +129,8 @@ static void create_monitor(void)
     lv_obj_set_style_bg_color(dot, lv_color_hex(0xffc46b), 0);
     lv_obj_set_style_border_width(dot, 0, 0);
     lv_obj_set_pos(dot, 4, 5);
-    lv_obj_t *waiting = label(status, "Ready for a model", &lv_font_montserrat_24, 0xf4f6ff);
-    lv_obj_set_pos(waiting, 30, -2);
+    s_monitor_state = label(status, "Ready for a model", &lv_font_montserrat_24, 0xf4f6ff);
+    lv_obj_set_pos(s_monitor_state, 30, -2);
     lv_obj_t *explain = label(status, "Recorder works. Classification remains disabled\nuntil a licensed model is installed.", &lv_font_montserrat_14, 0x8e97af);
     lv_obj_set_pos(explain, 4, 48);
 
@@ -126,6 +141,13 @@ static void create_monitor(void)
     lv_obj_set_pos(p2, 2, 27);
     lv_obj_t *p3 = label(privacy, "Not a medical diagnosis", &lv_font_montserrat_14, 0x8e97af);
     lv_obj_set_pos(p3, 2, 72);
+    s_monitor_button = lv_button_create(status);
+    lv_obj_set_size(s_monitor_button, 150, 42);
+    lv_obj_align(s_monitor_button, LV_ALIGN_BOTTOM_RIGHT, -2, -1);
+    lv_obj_set_style_radius(s_monitor_button, 14, 0);
+    lv_obj_add_event_cb(s_monitor_button, monitor_button_event, LV_EVENT_CLICKED, NULL);
+    lv_obj_t *button_text = label(s_monitor_button, "START NIGHT", &lv_font_montserrat_14, 0xffffff);
+    lv_obj_center(button_text);
     s_pages[PAGE_MONITOR] = screen;
 }
 
@@ -306,6 +328,20 @@ static void refresh(lv_timer_t *timer)
     lv_label_set_text(lv_obj_get_child(s_record_button, 0), status.recording ? "STOP & SAVE" : "START RECORDING");
     lv_obj_set_style_bg_color(s_record_button, lv_color_hex(status.recording ? 0xe54b5f : 0x7568ef), 0);
     if (!status.ready) lv_obj_add_state(s_record_button, LV_STATE_DISABLED); else lv_obj_remove_state(s_record_button, LV_STATE_DISABLED);
+
+    sleep_engine_status_t sleep;
+    sleep_engine_get_status(&sleep);
+    int probability = (int)(sleep.probability * 100 + .5f);
+    lv_arc_set_value(s_monitor_ring, probability);
+    if (sleep.model_available) snprintf(text, sizeof(text), "%d%%", probability);
+    else strlcpy(text, "--%", sizeof(text));
+    lv_label_set_text(s_monitor_probability, text);
+    lv_label_set_text(s_monitor_state, sleep.state);
+    lv_label_set_text(s_monitor_model, sleep.model_available ? "SNORE AI V1" : "MODEL NOT INSTALLED");
+    lv_obj_set_style_text_color(s_monitor_model, lv_color_hex(sleep.model_available ? 0x63e2c6 : 0xffc46b), 0);
+    lv_label_set_text(lv_obj_get_child(s_monitor_button, 0), sleep.monitoring ? "END NIGHT" : "START NIGHT");
+    if (!sleep.model_available) lv_obj_add_state(s_monitor_button, LV_STATE_DISABLED);
+    else lv_obj_remove_state(s_monitor_button, LV_STATE_DISABLED);
 }
 
 void recorder_ui_create(void)

@@ -19,8 +19,9 @@ test audio, then tap **Stop & save** before removing the card. Files are named `
 
 ## Train Snore AI v1
 
-`ml/train.py` creates one-second Log-Mel features, trains a small depthwise-separable CNN, evaluates a
-held-out stratified test split and exports a fully int8 TFLite model. It refuses to train unless every
+`ml/train.py` extracts firmware-identical time/spectral features from one-second windows, trains a small
+quantized classifier, evaluates a
+source-grouped held-out test split and exports a fully int8 TFLite model. It refuses to train unless every
 included dataset source has a known license in `LICENSES.csv`.
 
 ```text
