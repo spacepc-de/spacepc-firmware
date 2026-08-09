@@ -8,6 +8,7 @@
 namespace {
 constexpr uint32_t wifiConnectTimeoutMs = 20000;
 constexpr uint32_t wifiRetryIntervalMs = 10000;
+constexpr uint32_t wifiAccessPointFallbackMs = 60000;
 constexpr uint32_t mqttRetryIntervalMs = 5000;
 constexpr char setupAccessPointPassword[] = "spacepcsetup";
 constexpr char localApiPath[] = "/api/v1";
@@ -130,12 +131,22 @@ SpacePCPortal::SpacePCPortal()
     homeAssistantDiscovery_(true),
     publishIntervalSeconds_(60),
     projectStatus_("starting"),
+    displayUpdateHandler_(nullptr),
     accessPointActive_(false),
     wifiConnected_(false),
     mdnsActive_(false),
     lastWifiAttempt_(0),
+    wifiDisconnectedSince_(0),
     lastMqttAttempt_(0),
     lastPublish_(0) {}
+
+void SpacePCPortal::enableDisplayApi(
+  const String &capabilitiesJson,
+  SpacePCDisplayUpdateHandler updateHandler
+) {
+  displayCapabilitiesJson_ = capabilitiesJson;
+  displayUpdateHandler_ = updateHandler;
+}
 
 bool SpacePCPortal::addNumberField(const SpacePCNumberField &field) {
   if (
@@ -216,6 +227,12 @@ void SpacePCPortal::begin(const SpacePCPortalConfig &config) {
     String(config_.projectId ? config_.projectId : "Setup") +
     "-" +
     deviceId_.substring(deviceId_.length() - 6);
+  if (accessPointName_.length() > 31) {
+    accessPointName_ =
+      accessPointName_.substring(0, 24) +
+      "-" +
+      deviceId_.substring(deviceId_.length() - 6);
+  }
 
   loadSettings();
   mqttClient_.setBufferSize(1024);
@@ -478,6 +495,7 @@ void SpacePCPortal::connectWifi() {
 void SpacePCPortal::maintainWifi() {
   const bool connected = WiFi.status() == WL_CONNECTED;
   if (connected) {
+    wifiDisconnectedSince_ = 0;
     if (wifiConnected_) {
       return;
     }
@@ -494,6 +512,7 @@ void SpacePCPortal::maintainWifi() {
 
   if (wifiConnected_) {
     wifiConnected_ = false;
+    wifiDisconnectedSince_ = max<uint32_t>(millis(), 1);
     if (mdnsActive_) {
       MDNS.end();
       mdnsActive_ = false;
@@ -502,6 +521,14 @@ void SpacePCPortal::maintainWifi() {
       mqttClient_.disconnect();
     }
     Serial.println("Wi-Fi disconnected.");
+  }
+
+  if (
+    !wifiSsid_.isEmpty() &&
+    wifiDisconnectedSince_ != 0 &&
+    millis() - wifiDisconnectedSince_ >= wifiAccessPointFallbackMs
+  ) {
+    startAccessPoint();
   }
 
   if (
@@ -562,6 +589,9 @@ void SpacePCPortal::startWebServer() {
   });
   webServer_.on("/api/v1/state", HTTP_GET, [this] {
     handleApiState();
+  });
+  webServer_.on("/api/v1/display", HTTP_PUT, [this] {
+    handleDisplayUpdate();
   });
   webServer_.on("/generate_204", HTTP_ANY, [this] {
     redirectToPortal();
@@ -902,7 +932,11 @@ void SpacePCPortal::handleApiInfo() {
     }
     payload += "}";
   }
-  payload += "]}";
+  payload += "]";
+  if (!displayCapabilitiesJson_.isEmpty()) {
+    payload += ",\"display\":" + displayCapabilitiesJson_;
+  }
+  payload += "}";
 
   webServer_.sendHeader("Cache-Control", "no-store");
   webServer_.send(200, "application/json", payload);
@@ -931,6 +965,30 @@ void SpacePCPortal::handleApiState() {
 
   webServer_.sendHeader("Cache-Control", "no-store");
   webServer_.send(200, "application/json", payload);
+}
+
+void SpacePCPortal::handleDisplayUpdate() {
+  if (!displayUpdateHandler_) {
+    webServer_.send(404, "application/json", "{\"error\":\"not_supported\"}");
+    return;
+  }
+  const String body = webServer_.arg("plain");
+  if (body.isEmpty() || body.length() > 16384) {
+    webServer_.send(400, "application/json", "{\"error\":\"invalid_payload\"}");
+    return;
+  }
+  String errorMessage;
+  if (!displayUpdateHandler_(body, errorMessage)) {
+    errorMessage.replace("\\", "\\\\");
+    errorMessage.replace("\"", "\\\"");
+    webServer_.send(
+      422,
+      "application/json",
+      "{\"error\":\"" + errorMessage + "\"}"
+    );
+    return;
+  }
+  webServer_.send(202, "application/json", "{\"accepted\":true}");
 }
 
 void SpacePCPortal::redirectToPortal() {

@@ -9,6 +9,8 @@ hardware and generic ESP32 development boards.
 projects/
   dummy-test/
   ds18b20-mqtt/
+  spacepc-homeassistant-display/
+  spacepc-weather-display/
 scripts/
   prepare-release.mjs
 lib/
@@ -18,6 +20,9 @@ lib/
 `dummy-test` verifies the build and release pipeline without controlling
 hardware. `ds18b20-mqtt` is a configurable temperature sensor with a local web
 interface, native Home Assistant discovery and optional MQTT publishing.
+`spacepc-homeassistant-display` is a Home Assistant-managed e-paper dashboard.
+`spacepc-weather-display` is an independent OpenWeatherMap weather dashboard
+for the Good Display ESP32-L, DESPI-C02 and GDEY075Z08.
 
 Functional projects should use `lib/SpacePCPortal` for the shared Wi-Fi setup,
 web interface, SpacePC API, mDNS service, optional MQTT connection and
@@ -48,6 +53,8 @@ pio run
 
 Use `projects/ds18b20-mqtt` to build the sensor firmware for classic ESP32,
 ESP32-S2, ESP32-S3 and ESP32-C3 development targets.
+The two display projects target the confirmed Good Display ESP32-L, DESPI-C02
+and GDEY075Z08 hardware combination.
 
 ## Continuous integration
 
@@ -64,6 +71,8 @@ git push origin dummy-test-v0.1.0
 ```
 
 Functional sensor releases use `ds18b20-mqtt-v<semantic-version>`.
+Display releases use `spacepc-homeassistant-display-v<semantic-version>` and
+`spacepc-weather-display-v<semantic-version>`.
 
 The release workflow:
 
