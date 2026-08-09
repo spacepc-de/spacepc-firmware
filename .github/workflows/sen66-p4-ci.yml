@@ -1,0 +1,29 @@
+name: Compile SEN66 P4 Airstation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "projects/sen66-p4-air-dashboard/**"
+      - ".github/workflows/sen66-p4-ci.yml"
+  pull_request:
+    paths:
+      - "projects/sen66-p4-air-dashboard/**"
+      - ".github/workflows/sen66-p4-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build ESP32-P4 firmware
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5
+          target: esp32p4
+          path: projects/sen66-p4-air-dashboard
+          command: idf.py build
