@@ -16,8 +16,8 @@ The current firmware is deliberately not an ML classifier yet. It validates the 
 - no Wi-Fi, cloud upload, or permanent background recording
 
 Insert a FAT32 microSD card before booting. Tap **Start recording**, generate the test audio, then tap
-**Stop & save** before removing the card. Files are named `/sleep-ai-0001.wav` through
-`/sleep-ai-9999.wav`. The first ES7210 channel is selected; channel comparison and configurable gain
+**Stop & save** before removing the card. Files are named `/SN0001.WAV` through
+`/SN9999.WAV`. The first ES7210 channel is selected; channel comparison and configurable gain
 are intentionally left for the hardware measurement pass.
 
 ## Build

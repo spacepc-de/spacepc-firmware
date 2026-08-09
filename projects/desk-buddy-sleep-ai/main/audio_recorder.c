@@ -1,6 +1,7 @@
 #include "audio_recorder.h"
 
 #include <math.h>
+#include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -39,7 +40,7 @@ static bool next_filename(char *path, size_t size)
 {
     struct stat st;
     for (unsigned i = 1; i <= 9999; ++i) {
-        snprintf(path, size, BSP_SD_MOUNT_POINT "/sleep-ai-%04u.wav", i);
+        snprintf(path, size, BSP_SD_MOUNT_POINT "/SN%04u.WAV", i);
         if (stat(path, &st) != 0) return true;
     }
     return false;
@@ -138,7 +139,12 @@ esp_err_t audio_recorder_start(void)
 
     char path[sizeof(s_status.filename)];
     if (!next_filename(path, sizeof(path))) return ESP_ERR_NOT_FOUND;
-    if (!wav_writer_open(&s_writer, path, RECORDER_SAMPLE_RATE)) return ESP_FAIL;
+    if (!wav_writer_open(&s_writer, path, RECORDER_SAMPLE_RATE)) {
+        char message[96];
+        snprintf(message, sizeof(message), "Cannot create WAV: %s", strerror(errno));
+        set_error(message);
+        return ESP_FAIL;
+    }
 
     s_recorded_samples = 0;
     xSemaphoreTake(s_lock, portMAX_DELAY);
