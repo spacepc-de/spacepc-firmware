@@ -165,6 +165,12 @@ esp_err_t audio_recorder_stop(void)
 
 void audio_recorder_get_status(recorder_status_t *status)
 {
+    if (!s_lock) {
+        memset(status, 0, sizeof(*status));
+        status->rms_dbfs = -96.0f;
+        status->peak_dbfs = -96.0f;
+        return;
+    }
     xSemaphoreTake(s_lock, portMAX_DELAY);
     *status = s_status;
     xSemaphoreGive(s_lock);
