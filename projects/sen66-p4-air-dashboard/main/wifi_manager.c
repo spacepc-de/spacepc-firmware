@@ -75,6 +75,10 @@ esp_err_t wifi_manager_init(void)
         nvs_close(nvs);
     }
     ESP_RETURN_ON_ERROR(esp_wifi_start(), TAG, "wifi start");
+    /* 13 dBm is ample for an indoor station and avoids the large current
+     * peaks of the default maximum transmit power on USB-powered setups. */
+    err = esp_wifi_set_max_tx_power(52);
+    if (err != ESP_OK) ESP_LOGW(TAG, "Could not limit WiFi TX power: %s", esp_err_to_name(err));
     if (ssid[0]) return wifi_manager_connect(ssid, password);
     ESP_LOGI(TAG, "No saved WiFi credentials");
     return ESP_OK;

@@ -39,7 +39,9 @@ static lv_obj_t *hero_card;
 static lv_obj_t *hero_unit;
 static lv_obj_t *hero_badge;
 static lv_obj_t *hero_hint;
-static lv_obj_t *age_label;
+static lv_obj_t *splash;
+static int64_t splash_started_us;
+static bool splash_closing;
 static lv_obj_t *chart;
 static lv_chart_series_t *co2_series;
 static lv_chart_series_t *pm_series;
@@ -87,6 +89,7 @@ static int display_off_minute = 23 * 60;
 static bool backlight_on = true;
 static bool time_configured;
 static bool swipe_handled;
+static bool view_transition_running;
 static lv_point_t swipe_start;
 static int last_schedule_minute = -1;
 typedef struct { const char *normal; const char *symbol; lv_obj_t *label; } key_info_t;
@@ -104,7 +107,9 @@ static unsigned long_history_head;
 static unsigned long_history_count;
 static int history_metric;
 static int history_range_index;
-static int co2_chart_max = 2000;
+static float co2_recent[60];
+static unsigned co2_recent_head;
+static unsigned co2_recent_count;
 static const int history_ranges[] = {60, 180, 300, 720, 1440, 2880, 7200, 10080};
 static const char *history_range_names[] = {"1h", "3h", "5h", "12h", "1d", "2d", "5d", "7d"};
 static const char *history_metric_names[] = {"CO2", "PM2.5", "VOC", "NOx", "Temperature", "Humidity", "PM10"};
@@ -184,14 +189,101 @@ static void load_settings(void)
     apply_timezone(timezone_index);
 }
 
+typedef struct {
+    lv_obj_t *outgoing;
+    lv_obj_t *incoming;
+} view_transition_t;
+
+static void view_anim_x(void *object, int32_t value) { lv_obj_set_x(object, value); }
+static void view_anim_y(void *object, int32_t value) { lv_obj_set_y(object, value); }
+static void splash_opa(void *object, int32_t value) { lv_obj_set_style_opa(object, value, 0); }
+static void splash_progress(void *object, int32_t value) { lv_bar_set_value(object, value, LV_ANIM_OFF); }
+
+static void splash_finished(lv_anim_t *animation)
+{
+    (void)animation;
+    if (splash) lv_obj_delete(splash);
+    splash = NULL;
+}
+
+static void dismiss_splash(void)
+{
+    if (!splash || splash_closing) return;
+    splash_closing = true;
+    lv_anim_t fade;
+    lv_anim_init(&fade);
+    lv_anim_set_var(&fade, splash);
+    lv_anim_set_values(&fade, LV_OPA_COVER, LV_OPA_TRANSP);
+    lv_anim_set_duration(&fade, 420);
+    lv_anim_set_path_cb(&fade, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&fade, splash_opa);
+    lv_anim_set_completed_cb(&fade, splash_finished);
+    lv_anim_start(&fade);
+}
+
+static void view_transition_finished(lv_anim_t *animation)
+{
+    view_transition_t *transition = lv_anim_get_user_data(animation);
+    if (transition->outgoing) {
+        lv_obj_add_flag(transition->outgoing, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_pos(transition->outgoing, 0, 0);
+    }
+    lv_obj_set_pos(transition->incoming, 0, 0);
+    view_transition_running = false;
+    free(transition);
+}
+
+static void animate_view(lv_obj_t *outgoing, lv_obj_t *incoming, bool vertical, int direction)
+{
+    if (view_transition_running || outgoing == incoming) return;
+    view_transition_t *transition = calloc(1, sizeof(*transition));
+    if (!transition) return;
+    transition->outgoing = outgoing;
+    transition->incoming = incoming;
+    view_transition_running = true;
+
+    int distance = vertical ? 480 : 800;
+    int incoming_start = direction * distance;
+    lv_obj_remove_flag(incoming, LV_OBJ_FLAG_HIDDEN);
+    if (vertical) lv_obj_set_pos(incoming, 0, incoming_start);
+    else lv_obj_set_pos(incoming, incoming_start, 0);
+    lv_obj_move_foreground(incoming);
+
+    lv_anim_t out;
+    lv_anim_init(&out);
+    lv_anim_set_var(&out, outgoing);
+    lv_anim_set_values(&out, 0, -direction * distance);
+    lv_anim_set_duration(&out, 310);
+    lv_anim_set_path_cb(&out, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&out, vertical ? view_anim_y : view_anim_x);
+    lv_anim_start(&out);
+
+    lv_anim_t in;
+    lv_anim_init(&in);
+    lv_anim_set_var(&in, incoming);
+    lv_anim_set_values(&in, incoming_start, 0);
+    lv_anim_set_duration(&in, 310);
+    lv_anim_set_path_cb(&in, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&in, vertical ? view_anim_y : view_anim_x);
+    lv_anim_set_user_data(&in, transition);
+    lv_anim_set_completed_cb(&in, view_transition_finished);
+    lv_anim_start(&in);
+}
+
 static void show_page(int index)
 {
-    current_page = (index + 3) % 3;
-    for (int i = 0; i < 3; ++i) {
-        if (i == current_page) lv_obj_remove_flag(pages[i], LV_OBJ_FLAG_HIDDEN);
-        else lv_obj_add_flag(pages[i], LV_OBJ_FLAG_HIDDEN);
+    int next_page = (index + 3) % 3;
+    bool settings_open = !lv_obj_has_flag(settings_page, LV_OBJ_FLAG_HIDDEN);
+    if (settings_open) {
+        animate_view(settings_page, pages[next_page], true, 1);
+    } else if (next_page != current_page) {
+        int direction = index > current_page ? 1 : -1;
+        /* Handle the wrap-around as a continuous carousel. */
+        if (current_page == 2 && next_page == 0) direction = 1;
+        if (current_page == 0 && next_page == 2) direction = -1;
+        animate_view(pages[current_page], pages[next_page], false, direction);
     }
-    lv_obj_add_flag(settings_page, LV_OBJ_FLAG_HIDDEN);
+    current_page = next_page;
 }
 
 /* Track the pointer ourselves as well. This remains reliable when a swipe starts
@@ -206,7 +298,7 @@ static void swipe_event(lv_event_t *event)
         swipe_handled = false;
         return;
     }
-    if (swipe_handled) return;
+    if (swipe_handled || view_transition_running) return;
     lv_point_t end;
     lv_indev_get_point(indev, &end);
     int dx = end.x - swipe_start.x;
@@ -215,13 +307,13 @@ static void swipe_event(lv_event_t *event)
     swipe_handled = true;
     if (LV_ABS(dy) > LV_ABS(dx)) {
         if (dy > 0) {
-            for (int i = 0; i < 3; ++i) lv_obj_add_flag(pages[i], LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(settings_page, LV_OBJ_FLAG_HIDDEN);
+            if (!lv_obj_has_flag(settings_page, LV_OBJ_FLAG_HIDDEN)) return;
             if (history_popup) lv_obj_add_flag(history_popup, LV_OBJ_FLAG_HIDDEN);
             lv_obj_remove_flag(settings_menu, LV_OBJ_FLAG_HIDDEN);
             for (int i = 0; i < 4; ++i) lv_obj_add_flag(settings_popups[i], LV_OBJ_FLAG_HIDDEN);
             active_input = ssid_input;
             lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
+            animate_view(pages[current_page], settings_page, true, -1);
         } else if (!lv_obj_has_flag(settings_page, LV_OBJ_FLAG_HIDDEN)) {
             show_page(current_page);
         }
@@ -432,6 +524,122 @@ static void format_value(char *out, size_t size, float value, int decimals)
     else snprintf(out, size, decimals ? "%.1f" : "%.0f", value);
 }
 
+typedef struct {
+    lv_obj_t *outgoing;
+    lv_obj_t *incoming;
+} slot_transition_t;
+
+static void slot_translate(void *object, int32_t value)
+{
+    lv_obj_t *label_obj = object;
+    lv_obj_set_style_translate_y(label_obj, value, 0);
+    lv_obj_set_style_opa(label_obj, LV_CLAMP(55, 255 - LV_ABS(value) * 11, 255), 0);
+}
+
+static void slot_finished(lv_anim_t *animation)
+{
+    slot_transition_t *transition = lv_anim_get_user_data(animation);
+    if (transition->outgoing) lv_obj_delete(transition->outgoing);
+    if (transition->incoming) lv_obj_delete(transition->incoming);
+    free(transition);
+}
+
+static lv_obj_t *slot_overlay(lv_obj_t *source, char digit, int32_t x, int32_t y)
+{
+    lv_obj_t *overlay = lv_label_create(lv_obj_get_parent(source));
+    char text[2] = {digit, 0};
+    const lv_font_t *font = lv_obj_get_style_text_font(source, LV_PART_MAIN);
+    lv_label_set_text(overlay, text);
+    lv_obj_set_pos(overlay, x, y);
+    lv_obj_set_size(overlay, lv_font_get_glyph_width(font, digit, 0) + 2,
+                    lv_obj_get_height(source));
+    lv_obj_set_style_text_font(overlay, font, 0);
+    lv_obj_set_style_text_color(overlay, lv_obj_get_style_text_color(source, LV_PART_MAIN), 0);
+    lv_obj_set_style_text_align(overlay, LV_TEXT_ALIGN_LEFT, 0);
+    lv_obj_move_foreground(overlay);
+    return overlay;
+}
+
+static void animated_number_set(lv_obj_t *label_obj, const char *new_text)
+{
+    const char *old_text = lv_label_get_text(label_obj);
+    if (strcmp(old_text, new_text) == 0) return;
+    char *old_end = NULL;
+    char *new_end = NULL;
+    float old_value = strtof(old_text, &old_end);
+    float new_value = strtof(new_text, &new_end);
+    if (old_end == old_text || new_end == new_text) {
+        lv_label_set_text(label_obj, new_text);
+        return;
+    }
+    size_t old_len = strlen(old_text), new_len = strlen(new_text);
+    /* A changed digit can only keep the same physical column if the formatted
+     * value has the same number of characters. Avoid a misleading roll at
+     * transitions such as 999 -> 1000. */
+    if (old_len == 0 || old_len != new_len || old_len >= 23) {
+        lv_label_set_text(label_obj, new_text);
+        return;
+    }
+    char old_copy[24];
+    strlcpy(old_copy, old_text, sizeof(old_copy));
+    old_text = old_copy;
+    int direction = new_value >= old_value ? 1 : -1;
+    const lv_font_t *font = lv_obj_get_style_text_font(label_obj, LV_PART_MAIN);
+    int32_t letter_space = lv_obj_get_style_text_letter_space(label_obj, LV_PART_MAIN);
+    int32_t total_width = 0;
+    for (size_t i = 0; i < old_len; ++i) {
+        total_width += lv_font_get_glyph_width(font, old_text[i],
+                                               i + 1 < old_len ? old_text[i + 1] : 0);
+        if (i + 1 < old_len) total_width += letter_space;
+    }
+    int32_t origin_x = lv_obj_get_x(label_obj);
+    lv_text_align_t align = lv_obj_get_style_text_align(label_obj, LV_PART_MAIN);
+    if (align == LV_TEXT_ALIGN_CENTER) origin_x += (lv_obj_get_width(label_obj) - total_width) / 2;
+    else if (align == LV_TEXT_ALIGN_RIGHT) origin_x += lv_obj_get_width(label_obj) - total_width;
+    int32_t source_y = lv_obj_get_y(label_obj);
+
+    /* Record exact glyph coordinates before changing the source label. */
+    int32_t digit_x[24];
+    int32_t cursor_x = origin_x;
+    for (size_t i = 0; i < old_len; ++i) {
+        digit_x[i] = cursor_x;
+        cursor_x += lv_font_get_glyph_width(font, old_text[i],
+                                            i + 1 < old_len ? old_text[i + 1] : 0);
+        if (i + 1 < old_len) cursor_x += letter_space;
+    }
+
+    lv_label_set_text(label_obj, new_text);
+    for (size_t i = 0; i < old_len; ++i) {
+        if (old_text[i] == new_text[i] || old_text[i] < '0' || old_text[i] > '9' ||
+            new_text[i] < '0' || new_text[i] > '9') continue;
+        slot_transition_t *transition = calloc(1, sizeof(*transition));
+        if (!transition) continue;
+        transition->outgoing = slot_overlay(label_obj, old_text[i], digit_x[i], source_y);
+        transition->incoming = slot_overlay(label_obj, new_text[i], digit_x[i], source_y);
+        slot_translate(transition->incoming, direction * 20);
+
+        lv_anim_t outgoing;
+        lv_anim_init(&outgoing);
+        lv_anim_set_var(&outgoing, transition->outgoing);
+        lv_anim_set_values(&outgoing, 0, -direction * 20);
+        lv_anim_set_duration(&outgoing, 220);
+        lv_anim_set_path_cb(&outgoing, lv_anim_path_ease_out);
+        lv_anim_set_exec_cb(&outgoing, slot_translate);
+        lv_anim_start(&outgoing);
+
+        lv_anim_t incoming;
+        lv_anim_init(&incoming);
+        lv_anim_set_var(&incoming, transition->incoming);
+        lv_anim_set_values(&incoming, direction * 20, 0);
+        lv_anim_set_duration(&incoming, 220);
+        lv_anim_set_path_cb(&incoming, lv_anim_path_ease_out);
+        lv_anim_set_exec_cb(&incoming, slot_translate);
+        lv_anim_set_user_data(&incoming, transition);
+        lv_anim_set_completed_cb(&incoming, slot_finished);
+        lv_anim_start(&incoming);
+    }
+}
+
 static void format_history_duration(char *out, size_t size, int minutes)
 {
     if (minutes >= 1440 && minutes % 1440 == 0) snprintf(out, size, "-%dd", minutes / 1440);
@@ -504,6 +712,9 @@ static void refresh_history_graph(void)
 
 static void history_metric_event(lv_event_t *event)
 {
+    /* LVGL can still emit CLICKED for the card on which a swipe began.
+     * The global pointer tracker has already classified that interaction. */
+    if (swipe_handled || view_transition_running) return;
     history_metric = (int)(intptr_t)lv_event_get_user_data(event);
     lv_obj_remove_flag(history_popup, LV_OBJ_FLAG_HIDDEN);
     lv_obj_move_foreground(history_popup);
@@ -530,13 +741,32 @@ static void history_close_event(lv_event_t *event)
 static void update_main_co2_scale(void)
 {
     if (show_pm) return;
-    int step = (co2_chart_max - 400) / 4;
+    float minimum = INFINITY;
+    float maximum = -INFINITY;
+    for (unsigned i = 0; i < co2_recent_count; ++i) {
+        float value = co2_recent[i];
+        if (!isnan(value)) {
+            minimum = LV_MIN(minimum, value);
+            maximum = LV_MAX(maximum, value);
+        }
+    }
+    int axis_min = 400;
+    int axis_max = 800;
+    if (isfinite(minimum) && isfinite(maximum)) {
+        float span = maximum - minimum;
+        float padding = LV_MAX(10.0f, span * 0.20f);
+        if (span < 40.0f) padding = (50.0f - span) * 0.5f;
+        axis_min = LV_MAX(400, ((int)floorf((minimum - padding) / 10.0f)) * 10);
+        axis_max = ((int)ceilf((maximum + padding) / 10.0f)) * 10;
+        if (axis_max - axis_min < 50) axis_max = axis_min + 50;
+    }
     char text[12];
     for (int i = 0; i < 5; ++i) {
-        snprintf(text, sizeof(text), "%d", co2_chart_max - i * step);
+        int value = axis_max - (axis_max - axis_min) * i / 4;
+        snprintf(text, sizeof(text), "%d", value);
         lv_label_set_text(chart_axis_labels[i], text);
     }
-    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 400, co2_chart_max);
+    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, axis_min, axis_max);
 }
 
 static void toggle_event(lv_event_t *event)
@@ -618,9 +848,6 @@ void air_ui_create(void)
     panel(wifi_dot, C_RED, LV_RADIUS_CIRCLE);
     wifi_text = label(page_main, "WiFi", &lv_font_montserrat_12, C_MUTED);
     lv_obj_set_pos(wifi_text, 690, 22);
-    age_label = label(page_main, "", &lv_font_montserrat_12, C_MUTED);
-    lv_obj_align(age_label, LV_ALIGN_TOP_RIGHT, -24, 39);
-
     hero_card = lv_obj_create(page_main);
     lv_obj_set_pos(hero_card, 20, 68);
     lv_obj_set_size(hero_card, 244, 214);
@@ -692,6 +919,7 @@ void air_ui_create(void)
     pm_series = lv_chart_add_series(chart, C_CYAN, LV_CHART_AXIS_PRIMARY_Y);
     lv_chart_hide_series(chart, pm_series, true);
     for (int i = 0; i < 60; ++i) {
+        co2_recent[i] = NAN;
         lv_chart_set_next_value(chart, co2_series, LV_CHART_POINT_NONE);
         lv_chart_set_next_value(chart, pm_series, LV_CHART_POINT_NONE);
     }
@@ -1024,11 +1252,43 @@ void air_ui_create(void)
         lv_obj_center(range_text);
         lv_obj_add_event_cb(range, history_range_event, LV_EVENT_CLICKED, (void *)(intptr_t)i);
     }
+
+    splash = lv_obj_create(screen);
+    lv_obj_set_pos(splash, 0, 0);
+    lv_obj_set_size(splash, 800, 480);
+    panel(splash, C_BG, 0);
+    lv_obj_t *splash_brand = label(splash, "Airstation", &lv_font_montserrat_48, C_TEXT);
+    lv_obj_align(splash_brand, LV_ALIGN_CENTER, 0, -46);
+    lv_obj_t *splash_caption = label(splash, "Preparing your air quality station", &lv_font_montserrat_14, C_MUTED);
+    lv_obj_align(splash_caption, LV_ALIGN_CENTER, 0, 12);
+    lv_obj_t *splash_bar = lv_bar_create(splash);
+    lv_obj_set_size(splash_bar, 360, 9);
+    lv_obj_align(splash_bar, LV_ALIGN_CENTER, 0, 58);
+    lv_bar_set_range(splash_bar, 0, 100);
+    lv_bar_set_value(splash_bar, 4, LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(splash_bar, C_PANEL_2, LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(splash_bar, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(splash_bar, C_CYAN, LV_PART_INDICATOR);
+    lv_obj_set_style_radius(splash_bar, LV_RADIUS_CIRCLE, LV_PART_MAIN);
+    lv_obj_set_style_radius(splash_bar, LV_RADIUS_CIRCLE, LV_PART_INDICATOR);
+    lv_obj_set_style_shadow_width(splash_bar, 16, LV_PART_INDICATOR);
+    lv_obj_set_style_shadow_color(splash_bar, C_CYAN, LV_PART_INDICATOR);
+    lv_obj_set_style_shadow_opa(splash_bar, LV_OPA_50, LV_PART_INDICATOR);
+    lv_anim_t loading;
+    lv_anim_init(&loading);
+    lv_anim_set_var(&loading, splash_bar);
+    lv_anim_set_values(&loading, 4, 100);
+    lv_anim_set_duration(&loading, 5000);
+    lv_anim_set_path_cb(&loading, lv_anim_path_ease_out);
+    lv_anim_set_exec_cb(&loading, splash_progress);
+    lv_anim_start(&loading);
+    splash_started_us = esp_timer_get_time();
     bsp_display_brightness_set(brightness);
 }
 
 void air_ui_update(const sen66_data_t *d, bool connected, unsigned age)
 {
+    (void)age;
     char text[48];
     int minute = current_minute();
     time_t now = time(NULL);
@@ -1052,13 +1312,12 @@ void air_ui_update(const sen66_data_t *d, bool connected, unsigned age)
     bool wifi_connected = wifi_manager_connected();
     lv_obj_set_style_bg_color(wifi_dot, wifi_connected ? C_GREEN : C_RED, 0);
     lv_label_set_text(wifi_text, "WiFi");
-    snprintf(text, sizeof(text), connected ? "live - %us" : "check I2C - GPIO 7/8", age);
-    lv_label_set_text(age_label, text);
     if (!d || !sen66_data_valid(d)) return;
+    if (splash && esp_timer_get_time() - splash_started_us >= 3000000) dismiss_splash();
 
     lv_color_t quality = quality_color(d);
     format_value(text, sizeof(text), d->co2, 0);
-    lv_label_set_text(hero_value, text);
+    animated_number_set(hero_value, text);
     lv_obj_set_style_bg_color(hero_badge, quality, 0);
     lv_label_set_text(lv_obj_get_child(hero_badge, 0), quality_text(d));
     if (!isnan(d->co2) && d->co2 > 1400) lv_label_set_text(hero_hint, "Open a window now");
@@ -1070,9 +1329,9 @@ void air_ui_update(const sen66_data_t *d, bool connected, unsigned age)
     const int decimals[] = {1, 0, 0, 1, 0, 1};
     for (int i = 0; i < 6; ++i) {
         format_value(text, sizeof(text), values[i], decimals[i]);
-        lv_label_set_text(cards[i].value, text);
+        animated_number_set(cards[i].value, text);
     }
-    format_value(text, sizeof(text), d->co2, 0); lv_label_set_text(circle_co2, text);
+    format_value(text, sizeof(text), d->co2, 0); animated_number_set(circle_co2, text);
     lv_label_set_text(circle_status, quality_text(d));
     lv_obj_set_style_text_color(circle_status, quality, 0);
     lv_obj_set_style_text_color(circle_co2, quality, 0);
@@ -1083,26 +1342,25 @@ void air_ui_update(const sen66_data_t *d, bool connected, unsigned age)
         int percent = isnan(values[i]) ? 0 : (int)(values[i] / maximums[i] * 100);
         lv_arc_set_value(circle_arcs[i], LV_CLAMP(0, percent, 100));
         format_value(text, sizeof(text), values[i], decimals[i]);
-        lv_label_set_text(circle_values[i], text);
+        animated_number_set(circle_values[i], text);
     }
     const float particles[] = {d->pm1, d->pm25, d->pm4, d->pm10};
     for (int i = 0; i < 4; ++i) {
         format_value(text, sizeof(text), particles[i], 1);
-        lv_label_set_text(particle_values[i], text);
+        animated_number_set(particle_values[i], text);
     }
     lv_obj_set_style_bg_color(cards[0].bar, d->pm25 > 35 ? C_RED : d->pm25 > 15 ? C_YELLOW : C_CYAN, 0);
     lv_obj_set_style_bg_color(cards[1].bar, d->voc > 250 ? C_RED : d->voc > 100 ? C_YELLOW : C_GREEN, 0);
     lv_obj_set_style_bg_color(cards[2].bar, d->nox > 250 ? C_RED : d->nox > 100 ? C_YELLOW : C_GREEN, 0);
 
-    if (!isnan(d->co2) && d->co2 > co2_chart_max) {
-        co2_chart_max = LV_MAX(2000, ((int)ceilf(d->co2 / 500.0f)) * 500);
-        update_main_co2_scale();
-    }
-
     if (history_tick++ % 60 == 0) {
+        co2_recent[co2_recent_head] = d->co2;
+        co2_recent_head = (co2_recent_head + 1) % 60;
+        if (co2_recent_count < 60) ++co2_recent_count;
         lv_chart_set_next_value(chart, co2_series, isnan(d->co2) ? LV_CHART_POINT_NONE : (int32_t)d->co2);
         lv_chart_set_next_value(chart, pm_series, isnan(d->pm25) ? LV_CHART_POINT_NONE : (int32_t)d->pm25);
         lv_chart_refresh(chart);
+        update_main_co2_scale();
         if (long_history) {
             const float samples[HISTORY_METRICS] = {
                 d->co2, d->pm25, d->voc, d->nox, d->temperature, d->humidity, d->pm10

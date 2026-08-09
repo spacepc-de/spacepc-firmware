@@ -33,13 +33,26 @@ void app_main(void)
     bsp_display_lock(-1);
     air_ui_create();
     bsp_display_unlock();
-    esp_err_t wifi_status = wifi_manager_init();
-    ESP_LOGI(TAG, "WiFi init: %s", esp_err_to_name(wifi_status));
-    esp_err_t api_status = spacepc_api_start();
-    ESP_LOGI(TAG, "SpacePC API init: %s", esp_err_to_name(api_status));
-
+    /* Start the SEN66 before powering up the C6 radio. On a cold boot the
+     * sensor fan and WiFi association otherwise create their current peaks at
+     * the same time, which can brown out USB-powered boards. */
     esp_err_t sensor_status = sen66_init(bsp_i2c_get_handle());
     ESP_LOGI(TAG, "SEN66 init: %s", esp_err_to_name(sensor_status));
+    /* Let the fan inrush and the 5 V rail settle before the C6 radio starts. */
+    vTaskDelay(pdMS_TO_TICKS(2500));
+    /* Relieve the shared supply only while the C6 performs its high-current
+     * association burst. The regular UI always runs at full brightness. */
+    bsp_display_brightness_set(30);
+    esp_err_t wifi_status = wifi_manager_init();
+    ESP_LOGI(TAG, "WiFi init: %s", esp_err_to_name(wifi_status));
+    /* Initialize mDNS before GOT_IP so it observes and enables the remote STA
+     * netif as soon as association completes. */
+    esp_err_t api_status = spacepc_api_start();
+    ESP_LOGI(TAG, "SpacePC API init: %s", esp_err_to_name(api_status));
+    for (int i = 0; i < 80 && !wifi_manager_connected(); ++i) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    bsp_display_brightness_set(100);
     unsigned age = 0;
     unsigned failures = 0;
     sen66_data_t data;

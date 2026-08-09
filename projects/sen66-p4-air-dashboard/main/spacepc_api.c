@@ -46,15 +46,22 @@ static esp_err_t send_json(httpd_req_t *request, cJSON *root)
 
 static esp_err_t info_handler(httpd_req_t *request)
 {
-    char json[4096];
-    snprintf(json, sizeof(json),
+    const size_t capacity = 4096;
+    char *json = malloc(capacity);
+    if (!json) {
+        httpd_resp_set_status(request, "503 Service Unavailable");
+        return httpd_resp_sendstr(request, "{\"error\":\"out_of_memory\"}");
+    }
+    snprintf(json, capacity,
         "{\"api_version\":1,\"device_id\":\"%s\",\"name\":\"Airstation\","
         "\"manufacturer\":\"SpacePC\",\"model\":\"Waveshare ESP32-P4 4.3 + SEN66\","
         "\"project_id\":\"sen66-p4-air-dashboard\","
         "\"firmware\":{\"version\":\"1.0.0\",\"build_date\":\"%s\",\"source_commit\":null},"
         "\"auth_required\":false,\"entities\":%s}", device_id, __DATE__, entity_info);
     httpd_resp_set_type(request, "application/json");
-    return httpd_resp_sendstr(request, json);
+    esp_err_t err = httpd_resp_sendstr(request, json);
+    free(json);
+    return err;
 }
 
 static void add_sensor(cJSON *entities, const char *id, float value, bool available)
@@ -128,11 +135,14 @@ static esp_err_t entity_handler(httpd_req_t *request)
 esp_err_t spacepc_api_start(void)
 {
     uint8_t mac[6];
-    ESP_RETURN_ON_ERROR(esp_read_mac(mac, ESP_MAC_WIFI_STA), TAG, "read MAC");
+    /* ESP32-P4 uses the companion C6 for WiFi and therefore has no local
+     * ESP_MAC_WIFI_STA address. Its factory base MAC is stable and unique. */
+    ESP_RETURN_ON_ERROR(esp_efuse_mac_get_default(mac), TAG, "read base MAC");
     snprintf(device_id, sizeof(device_id), "airstation-%02x%02x%02x", mac[3], mac[4], mac[5]);
 
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 80;
+    config.stack_size = 8192;
     config.uri_match_fn = httpd_uri_match_wildcard;
     httpd_handle_t server = NULL;
     ESP_RETURN_ON_ERROR(httpd_start(&server, &config), TAG, "HTTP server");
