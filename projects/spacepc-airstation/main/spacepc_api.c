@@ -55,7 +55,7 @@ static esp_err_t info_handler(httpd_req_t *request)
     snprintf(json, capacity,
         "{\"api_version\":1,\"device_id\":\"%s\",\"name\":\"Airstation\","
         "\"manufacturer\":\"SpacePC\",\"model\":\"Waveshare ESP32-P4 4.3 + SEN66\","
-        "\"project_id\":\"sen66-p4-air-dashboard\","
+        "\"project_id\":\"spacepc-airstation\","
         "\"firmware\":{\"version\":\"1.0.0\",\"build_date\":\"%s\",\"source_commit\":null},"
         "\"auth_required\":false,\"entities\":%s}", device_id, __DATE__, entity_info);
     httpd_resp_set_type(request, "application/json");
@@ -158,7 +158,7 @@ esp_err_t spacepc_api_start(void)
     ESP_RETURN_ON_ERROR(mdns_instance_name_set("SpacePC Airstation"), TAG, "mDNS instance");
     ESP_RETURN_ON_ERROR(mdns_service_add("SpacePC Airstation", "_spacepc", "_tcp", 80, NULL, 0), TAG, "mDNS service");
     mdns_txt_item_t txt[] = {{"id", device_id}, {"api", "1"},
-        {"project", "sen66-p4-air-dashboard"}, {"path", "/api/v1"}};
+        {"project", "spacepc-airstation"}, {"path", "/api/v1"}};
     ESP_RETURN_ON_ERROR(mdns_service_txt_set("_spacepc", "_tcp", txt, 4), TAG, "mDNS TXT");
     ESP_LOGI(TAG, "SpacePC Local API v1: http://%s.local/api/v1", device_id);
     return ESP_OK;

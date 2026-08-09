@@ -1,9 +1,9 @@
-name: Publish SEN66 P4 Airstation release
+name: Publish SpacePC Airstation release
 
 on:
   push:
     tags:
-      - "sen66-p4-air-dashboard-v*"
+      - "spacepc-airstation-v*"
 
 permissions:
   contents: write
@@ -17,7 +17,7 @@ jobs:
         id: release
         shell: bash
         run: |
-          version="${GITHUB_REF_NAME#sen66-p4-air-dashboard-v}"
+          version="${GITHUB_REF_NAME#spacepc-airstation-v}"
           if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid semantic version: $version"
             exit 1
@@ -28,7 +28,7 @@ jobs:
         with:
           esp_idf_version: v5.5
           target: esp32p4
-          path: projects/sen66-p4-air-dashboard
+          path: projects/spacepc-airstation
           command: idf.py build
       - uses: actions/setup-node@v4
         with:
@@ -36,9 +36,9 @@ jobs:
       - name: Prepare browser installer manifest
         run: |
           node scripts/prepare-release.mjs \
-            --project sen66-p4-air-dashboard \
+            --project spacepc-airstation \
             --version "${{ steps.release.outputs.version }}" \
-            --target "ESP32-P4:esp32-p4:projects/sen66-p4-air-dashboard/build" \
+            --target "ESP32-P4:esp32-p4:projects/spacepc-airstation/build" \
             --out firmware-dist \
             --build-date "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
             --source-commit "$GITHUB_SHA" \
@@ -56,8 +56,8 @@ jobs:
           S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
           S3_BUCKET: ${{ vars.S3_BUCKET }}
         run: |
-          versioned="s3://${S3_BUCKET}/firmware/sen66-p4-air-dashboard/${{ steps.release.outputs.version }}"
-          latest="s3://${S3_BUCKET}/firmware/sen66-p4-air-dashboard/latest"
+          versioned="s3://${S3_BUCKET}/firmware/spacepc-airstation/${{ steps.release.outputs.version }}"
+          latest="s3://${S3_BUCKET}/firmware/spacepc-airstation/latest"
           aws --endpoint-url "$S3_ENDPOINT" s3 cp firmware-dist "$versioned" \
             --recursive --cache-control "public,max-age=31536000,immutable"
           aws --endpoint-url "$S3_ENDPOINT" s3 cp firmware-dist "$latest" \
