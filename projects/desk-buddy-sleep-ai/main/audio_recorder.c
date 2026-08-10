@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
+#include "app_settings.h"
 #include "bsp/esp-bsp.h"
 #include "esp_codec_dev.h"
 #include "esp_check.h"
@@ -16,7 +17,7 @@
 
 #define BLOCK_FRAMES 512
 #define INPUT_CHANNELS 2
-#define MIC_GAIN_DB 24.0f
+#define SEGMENT_SECONDS (30U * 60U)
 
 static const char *TAG = "audio_recorder";
 static esp_codec_dev_handle_t s_mic;
@@ -25,6 +26,7 @@ static recorder_status_t s_status;
 static wav_writer_t s_writer;
 static int16_t s_stereo[BLOCK_FRAMES * INPUT_CHANNELS];
 static uint64_t s_recorded_samples;
+static uint32_t s_segment_samples;
 static audio_pcm_callback_t s_pcm_callback;
 static void *s_pcm_context;
 
@@ -88,7 +90,22 @@ static void recorder_task(void *arg)
                 wav_writer_close(&s_writer, RECORDER_SAMPLE_RATE, INPUT_CHANNELS);
             } else {
                 s_recorded_samples += BLOCK_FRAMES;
+                s_segment_samples += BLOCK_FRAMES;
                 s_status.elapsed_seconds = s_recorded_samples / RECORDER_SAMPLE_RATE;
+                if (s_segment_samples >= RECORDER_SAMPLE_RATE * SEGMENT_SECONDS) {
+                    bool closed = wav_writer_close(&s_writer, RECORDER_SAMPLE_RATE, INPUT_CHANNELS);
+                    char next_path[sizeof(s_status.filename)];
+                    if (!closed || !next_filename(next_path, sizeof(next_path)) ||
+                        !wav_writer_open(&s_writer, next_path, RECORDER_SAMPLE_RATE, INPUT_CHANNELS)) {
+                        s_status.recording = false;
+                        s_status.dropped_blocks++;
+                        strlcpy(s_status.error, "Cannot start next 30-minute WAV segment", sizeof(s_status.error));
+                    } else {
+                        s_segment_samples = 0;
+                        strlcpy(s_status.filename, next_path, sizeof(s_status.filename));
+                        ESP_LOGI(TAG, "Continuing overnight recording in %s", next_path);
+                    }
+                }
             }
         }
         xSemaphoreGive(s_lock);
@@ -107,12 +124,13 @@ esp_err_t audio_recorder_init(void)
     s_lock = xSemaphoreCreateMutex();
     if (!s_lock) return ESP_ERR_NO_MEM;
 
-    esp_err_t err = bsp_sdcard_mount();
-    if (err != ESP_OK) {
+    esp_err_t sd_err = bsp_sdcard_mount();
+    if (sd_err != ESP_OK) {
         set_error("Insert a FAT32 microSD card and restart");
-        return err;
+        s_status.sd_mounted = false;
+    } else {
+        s_status.sd_mounted = true;
     }
-    s_status.sd_mounted = true;
 
     i2s_std_config_t i2s_config = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(RECORDER_SAMPLE_RATE),
@@ -133,9 +151,14 @@ esp_err_t audio_recorder_init(void)
         .bits_per_sample = 16,
     };
     if (esp_codec_dev_open(s_mic, &format) != ESP_CODEC_DEV_OK) return ESP_FAIL;
-    if (esp_codec_dev_set_in_gain(s_mic, MIC_GAIN_DB) != ESP_CODEC_DEV_OK) return ESP_FAIL;
+    app_settings_t settings;
+    app_settings_load(&settings);
+    uint8_t gain_db = settings.microphone_gain_db;
+    if (gain_db < 24 || gain_db > 36) gain_db = 36;
+    if (esp_codec_dev_set_in_gain(s_mic, gain_db) != ESP_CODEC_DEV_OK) return ESP_FAIL;
 
     s_status.ready = true;
+    s_status.microphone_gain_db = gain_db;
     s_status.rms_dbfs = -96.0f;
     s_status.peak_dbfs = -96.0f;
     s_status.rms_dbfs_ch2 = -96.0f;
@@ -143,6 +166,20 @@ esp_err_t audio_recorder_init(void)
     if (xTaskCreatePinnedToCore(recorder_task, "audio_capture", 6144, NULL, 12, NULL, 1) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
+    return ESP_OK;
+}
+
+esp_err_t audio_recorder_set_gain(uint8_t gain_db)
+{
+    if (!s_mic || gain_db < 24 || gain_db > 36) return ESP_ERR_INVALID_ARG;
+    // ES7210 supports 3 dB steps throughout this range.
+    gain_db = 24 + ((gain_db - 24 + 1) / 3) * 3;
+    if (gain_db > 36) gain_db = 36;
+    if (esp_codec_dev_set_in_gain(s_mic, gain_db) != ESP_CODEC_DEV_OK) return ESP_FAIL;
+    xSemaphoreTake(s_lock, portMAX_DELAY);
+    s_status.microphone_gain_db = gain_db;
+    xSemaphoreGive(s_lock);
+    ESP_LOGI(TAG, "Microphone gain set to %u dB", gain_db);
     return ESP_OK;
 }
 
@@ -163,6 +200,7 @@ esp_err_t audio_recorder_start(void)
     }
 
     s_recorded_samples = 0;
+    s_segment_samples = 0;
     xSemaphoreTake(s_lock, portMAX_DELAY);
     strlcpy(s_status.filename, path, sizeof(s_status.filename));
     s_status.elapsed_seconds = 0;

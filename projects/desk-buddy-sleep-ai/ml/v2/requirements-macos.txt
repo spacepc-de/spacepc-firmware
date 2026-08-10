@@ -1,0 +1,8 @@
+torch==2.13.0
+librosa==0.11.0
+soundfile==0.13.1
+scikit-learn==1.7.1
+numpy==2.2.6
+pyedflib==0.1.42
+onnx==1.18.0
+onnxscript==0.5.6

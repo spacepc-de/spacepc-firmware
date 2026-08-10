@@ -4,7 +4,7 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 
-#define SETTINGS_VERSION 1
+#define SETTINGS_VERSION 6
 
 typedef struct {
     uint16_t version;
@@ -18,10 +18,12 @@ void app_settings_defaults(app_settings_t *settings)
     settings->end_hour = 7;
     settings->night_brightness = 8;
     settings->microphone_channel = 2;
-    settings->microphone_gain_db = 24;
-    settings->start_probability = 85;
-    settings->end_probability = 35;
+    settings->microphone_gain_db = 36;
+    settings->start_probability = 50;
+    settings->end_probability = 25;
+    settings->model_profile = APP_MODEL_CONSERVATIVE;
     settings->schedule_enabled = true;
+    settings->record_during_monitoring = true;
 }
 
 esp_err_t app_settings_load(app_settings_t *settings)

@@ -7,7 +7,9 @@
 typedef struct {
     bool model_available;
     bool monitoring;
+    bool recording_audio;
     bool event_active;
+    uint8_t model_profile;
     float probability;
     uint32_t inference_ms;
     uint32_t event_count;
@@ -18,5 +20,6 @@ typedef struct {
 } sleep_engine_status_t;
 
 esp_err_t sleep_engine_init(void);
+esp_err_t sleep_engine_start_monitoring(bool record_audio);
 esp_err_t sleep_engine_set_monitoring(bool enabled);
 void sleep_engine_get_status(sleep_engine_status_t *status);

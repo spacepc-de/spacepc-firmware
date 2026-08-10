@@ -4,6 +4,11 @@
 #include <stdint.h>
 #include "esp_err.h"
 
+typedef enum {
+    APP_MODEL_CONSERVATIVE = 0,
+    APP_MODEL_SENSITIVE = 1,
+} app_model_profile_t;
+
 typedef struct {
     uint8_t start_hour;
     uint8_t start_minute;
@@ -14,9 +19,11 @@ typedef struct {
     uint8_t microphone_gain_db;
     uint8_t start_probability;
     uint8_t end_probability;
+    uint8_t model_profile;
     bool schedule_enabled;
     bool display_off_during_monitoring;
     bool retain_event_audio;
+    bool record_during_monitoring;
 } app_settings_t;
 
 void app_settings_defaults(app_settings_t *settings);

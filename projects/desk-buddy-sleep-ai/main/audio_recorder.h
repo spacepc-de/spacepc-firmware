@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include "esp_err.h"
 
-#define RECORDER_SAMPLE_RATE 16000
+#define RECORDER_SAMPLE_RATE 32000
 
 typedef struct {
     bool ready;
@@ -17,6 +17,7 @@ typedef struct {
     float peak_dbfs_ch2;
     uint32_t elapsed_seconds;
     uint32_t dropped_blocks;
+    uint8_t microphone_gain_db;
     char filename[64];
     char error[96];
 } recorder_status_t;
@@ -26,5 +27,6 @@ typedef void (*audio_pcm_callback_t)(const int16_t *stereo_samples, size_t frame
 esp_err_t audio_recorder_init(void);
 esp_err_t audio_recorder_start(void);
 esp_err_t audio_recorder_stop(void);
+esp_err_t audio_recorder_set_gain(uint8_t gain_db);
 void audio_recorder_get_status(recorder_status_t *status);
 void audio_recorder_set_pcm_callback(audio_pcm_callback_t callback, void *context);

@@ -5,4 +5,5 @@ idf_component_register(
          "sleep_engine.c"
     INCLUDE_DIRS "."
     REQUIRES esp32_p4_wifi6_touch_lcd_4_3 esp_codec_dev fatfs nvs_flash esp_timer esp-tflite-micro
+    EMBED_FILES "../local_models/efficientat_mn04_snoring_int8.tflite"
 )

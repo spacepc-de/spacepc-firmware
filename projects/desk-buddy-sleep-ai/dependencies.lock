@@ -1,7 +1,6 @@
 dependencies:
   espressif/button:
-    component_hash:
-      ad64de1d1b8aa139564810a8519b2f1ac275a560a512479ee94c1b6983469d4b
+    component_hash: ad64de1d1b8aa139564810a8519b2f1ac275a560a512479ee94c1b6983469d4b
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -15,8 +14,7 @@ dependencies:
       type: service
     version: 4.2.0
   espressif/cmake_utilities:
-    component_hash:
-      351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
+    component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
     dependencies:
     - name: idf
       require: private
@@ -26,8 +24,7 @@ dependencies:
       type: service
     version: 0.5.3
   espressif/esp-nn:
-    component_hash:
-      5d99b2991c109211ea5722bae481bbe243dc7e064d9ffd9e5dfa58aba7be9d88
+    component_hash: 5d99b2991c109211ea5722bae481bbe243dc7e064d9ffd9e5dfa58aba7be9d88
     dependencies:
     - name: idf
       require: private
@@ -37,8 +34,7 @@ dependencies:
       type: service
     version: 1.1.1
   espressif/esp-tflite-micro:
-    component_hash:
-      22fc501ab0b1bd39377048d608e6fce0e7b55cd07d244cbf41044b24d9b7db2e
+    component_hash: 22fc501ab0b1bd39377048d608e6fce0e7b55cd07d244cbf41044b24d9b7db2e
     dependencies:
     - name: espressif/esp-nn
       registry_url: https://components.espressif.com
@@ -52,8 +48,7 @@ dependencies:
       type: service
     version: 1.3.7
   espressif/esp_codec_dev:
-    component_hash: 
-      014948481bda426cd46714f297fe1891711246c62bea288863a8cc8cf13ef1f0
+    component_hash: 014948481bda426cd46714f297fe1891711246c62bea288863a8cc8cf13ef1f0
     dependencies:
     - name: idf
       require: private
@@ -63,8 +58,7 @@ dependencies:
       type: service
     version: 1.2.0
   espressif/esp_lcd_st7701:
-    component_hash: 
-      924f346e36da39aaa38177e21bd360b5442abc792338fb64ad1e644481255898
+    component_hash: 924f346e36da39aaa38177e21bd360b5442abc792338fb64ad1e644481255898
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -82,8 +76,7 @@ dependencies:
     - esp32p4
     version: 2.0.2~2
   espressif/esp_lcd_touch:
-    component_hash: 
-      3f85a7d95af876f1a6ecca8eb90a81614890d0f03a038390804e5a77e2caf862
+    component_hash: 3f85a7d95af876f1a6ecca8eb90a81614890d0f03a038390804e5a77e2caf862
     dependencies:
     - name: idf
       require: private
@@ -93,8 +86,7 @@ dependencies:
       type: service
     version: 1.2.1
   espressif/esp_lcd_touch_gt911:
-    component_hash: 
-      07f678e4202d79bbad917805dcec4134ff08344177720f32ec4898267ad9e394
+    component_hash: 07f678e4202d79bbad917805dcec4134ff08344177720f32ec4898267ad9e394
     dependencies:
     - name: espressif/esp_lcd_touch
       registry_url: https://components.espressif.com
@@ -108,8 +100,7 @@ dependencies:
       type: service
     version: 1.2.0~3
   espressif/esp_lv_decoder:
-    component_hash: 
-      331d23c304cea5d1aed0ad3cea7774874dbaeebb2217e8db6bf3cc8485ac9f9f
+    component_hash: 331d23c304cea5d1aed0ad3cea7774874dbaeebb2217e8db6bf3cc8485ac9f9f
     dependencies:
     - name: espressif/esp_new_jpeg
       registry_url: https://components.espressif.com
@@ -143,8 +134,7 @@ dependencies:
     - esp32h4
     version: 0.4.3
   espressif/esp_lv_fs:
-    component_hash: 
-      66896007884b817df34c964f9a114fff538ee2674e99fee7159162498b93f94b
+    component_hash: 66896007884b817df34c964f9a114fff538ee2674e99fee7159162498b93f94b
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -166,8 +156,7 @@ dependencies:
       type: service
     version: 1.0.1
   espressif/esp_lvgl_adapter:
-    component_hash: 
-      a86c36e1f762bca480672f17ecd759f54d38fd802a709fff142ccfac4d8466a6
+    component_hash: a86c36e1f762bca480672f17ecd759f54d38fd802a709fff142ccfac4d8466a6
     dependencies:
     - name: espressif/button
       registry_url: https://components.espressif.com
@@ -206,8 +195,7 @@ dependencies:
       type: service
     version: 0.1.4
   espressif/esp_mmap_assets:
-    component_hash: 
-      b7c559238d9f4c11048b1d7302f5474e4f4f590902433efd792bd0cbf5324f2a
+    component_hash: b7c559238d9f4c11048b1d7302f5474e4f4f590902433efd792bd0cbf5324f2a
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -221,8 +209,7 @@ dependencies:
       type: service
     version: 2.0.0
   espressif/esp_new_jpeg:
-    component_hash: 
-      e1e7e6991193c41ed6c9fc386702aa7821433319e7aa9c3147cd3236310cd69c
+    component_hash: e1e7e6991193c41ed6c9fc386702aa7821433319e7aa9c3147cd3236310cd69c
     dependencies: []
     source:
       registry_url: https://components.espressif.com
@@ -241,8 +228,7 @@ dependencies:
     - esp32h4
     version: 1.0.2
   espressif/freetype:
-    component_hash: 
-      a4169cdd22b3572342b2d640d7082405b8895e3214539283601c03412589b65d
+    component_hash: a4169cdd22b3572342b2d640d7082405b8895e3214539283601c03412589b65d
     dependencies:
     - name: idf
       require: private
@@ -252,8 +238,7 @@ dependencies:
       type: service
     version: 2.14.2
   espressif/knob:
-    component_hash: 
-      b56694054cd34a683ac2a6f3661963ba00b1dab741a4f3bb59ed6666cbc9f3fb
+    component_hash: b56694054cd34a683ac2a6f3661963ba00b1dab741a4f3bb59ed6666cbc9f3fb
     dependencies:
     - name: espressif/cmake_utilities
       registry_url: https://components.espressif.com
@@ -267,8 +252,7 @@ dependencies:
       type: service
     version: 1.1.0
   espressif/libpng:
-    component_hash: 
-      30b1f2f8ddf13754b3e21d7ac134b3cc8f02957bb01d0c6deb5e9a68080d69d5
+    component_hash: 30b1f2f8ddf13754b3e21d7ac134b3cc8f02957bb01d0c6deb5e9a68080d69d5
     dependencies:
     - name: idf
       require: private
@@ -282,8 +266,7 @@ dependencies:
       type: service
     version: 1.6.58
   espressif/zlib:
-    component_hash: 
-      64ea2fd6754c5a05951f1ddb312ac835cd782e68cb5bd9dfcd1c3a107c8fbfbc
+    component_hash: 64ea2fd6754c5a05951f1ddb312ac835cd782e68cb5bd9dfcd1c3a107c8fbfbc
     dependencies:
     - name: idf
       require: private
@@ -297,8 +280,7 @@ dependencies:
       type: idf
     version: 5.5.0
   lvgl/lvgl:
-    component_hash: 
-      17e68bfd21f0edf4c3ee838e2273da840bf3930e5dbc3bfa6c1190c3aed41f9f
+    component_hash: 17e68bfd21f0edf4c3ee838e2273da840bf3930e5dbc3bfa6c1190c3aed41f9f
     dependencies: []
     source:
       registry_url: https://components.espressif.com/
