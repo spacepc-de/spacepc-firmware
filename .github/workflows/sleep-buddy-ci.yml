@@ -1,16 +1,16 @@
-name: Compile Desk Buddy Sleep AI
+name: Compile Sleep Buddy
 
 on:
   push:
     paths:
-      - "projects/desk-buddy-sleep-ai/**"
+      - "projects/sleep-buddy/**"
       - "projects/spacepc-airstation/components/esp32_p4_wifi6_touch_lcd_4_3/**"
-      - ".github/workflows/desk-buddy-sleep-ai-ci.yml"
+      - ".github/workflows/sleep-buddy-ci.yml"
   pull_request:
     paths:
-      - "projects/desk-buddy-sleep-ai/**"
+      - "projects/sleep-buddy/**"
       - "projects/spacepc-airstation/components/esp32_p4_wifi6_touch_lcd_4_3/**"
-      - ".github/workflows/desk-buddy-sleep-ai-ci.yml"
+      - ".github/workflows/sleep-buddy-ci.yml"
   workflow_dispatch:
 
 permissions:
@@ -26,5 +26,5 @@ jobs:
         with:
           esp_idf_version: v5.5
           target: esp32p4
-          path: projects/desk-buddy-sleep-ai
+          path: projects/sleep-buddy
           command: idf.py build

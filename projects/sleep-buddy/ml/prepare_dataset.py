@@ -6,7 +6,7 @@ import librosa
 import soundfile as sf
 
 def download(page, target):
-    request = urllib.request.Request(page, headers={"User-Agent": "DeskBuddyDataset/1.0"})
+    request = urllib.request.Request(page, headers={"User-Agent": "SleepBuddyDataset/1.0"})
     html = urllib.request.urlopen(request).read().decode("utf-8", "replace")
     if "Creative Commons 0" not in html:
         raise RuntimeError(f"CC0 marker missing at {page}")

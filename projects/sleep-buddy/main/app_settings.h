@@ -4,11 +4,6 @@
 #include <stdint.h>
 #include "esp_err.h"
 
-typedef enum {
-    APP_MODEL_CONSERVATIVE = 0,
-    APP_MODEL_SENSITIVE = 1,
-} app_model_profile_t;
-
 typedef struct {
     uint8_t start_hour;
     uint8_t start_minute;
@@ -16,14 +11,20 @@ typedef struct {
     uint8_t end_minute;
     uint8_t night_brightness;
     uint8_t microphone_channel;
-    uint8_t microphone_gain_db;
+    // Retained in-place so existing version-7 NVS blobs, including WiFi
+    // credentials, remain binary compatible. Audio gain is fixed in firmware.
+    uint8_t reserved_microphone_gain_db;
     uint8_t start_probability;
     uint8_t end_probability;
-    uint8_t model_profile;
+    // Former sensitivity selector; retained only for NVS layout compatibility.
+    uint8_t reserved_model_profile;
     bool schedule_enabled;
     bool display_off_during_monitoring;
     bool retain_event_audio;
     bool record_during_monitoring;
+    uint8_t timezone_index;
+    char wifi_ssid[33];
+    char wifi_password[65];
 } app_settings_t;
 
 void app_settings_defaults(app_settings_t *settings);

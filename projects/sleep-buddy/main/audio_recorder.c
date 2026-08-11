@@ -5,7 +5,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
-#include "app_settings.h"
 #include "bsp/esp-bsp.h"
 #include "esp_codec_dev.h"
 #include "esp_check.h"
@@ -18,6 +17,7 @@
 #define BLOCK_FRAMES 512
 #define INPUT_CHANNELS 2
 #define SEGMENT_SECONDS (30U * 60U)
+#define MICROPHONE_GAIN_DB 36U
 
 static const char *TAG = "audio_recorder";
 static esp_codec_dev_handle_t s_mic;
@@ -151,14 +151,10 @@ esp_err_t audio_recorder_init(void)
         .bits_per_sample = 16,
     };
     if (esp_codec_dev_open(s_mic, &format) != ESP_CODEC_DEV_OK) return ESP_FAIL;
-    app_settings_t settings;
-    app_settings_load(&settings);
-    uint8_t gain_db = settings.microphone_gain_db;
-    if (gain_db < 24 || gain_db > 36) gain_db = 36;
-    if (esp_codec_dev_set_in_gain(s_mic, gain_db) != ESP_CODEC_DEV_OK) return ESP_FAIL;
+    if (esp_codec_dev_set_in_gain(s_mic, MICROPHONE_GAIN_DB) != ESP_CODEC_DEV_OK) return ESP_FAIL;
 
     s_status.ready = true;
-    s_status.microphone_gain_db = gain_db;
+    s_status.microphone_gain_db = MICROPHONE_GAIN_DB;
     s_status.rms_dbfs = -96.0f;
     s_status.peak_dbfs = -96.0f;
     s_status.rms_dbfs_ch2 = -96.0f;
@@ -166,20 +162,6 @@ esp_err_t audio_recorder_init(void)
     if (xTaskCreatePinnedToCore(recorder_task, "audio_capture", 6144, NULL, 12, NULL, 1) != pdPASS) {
         return ESP_ERR_NO_MEM;
     }
-    return ESP_OK;
-}
-
-esp_err_t audio_recorder_set_gain(uint8_t gain_db)
-{
-    if (!s_mic || gain_db < 24 || gain_db > 36) return ESP_ERR_INVALID_ARG;
-    // ES7210 supports 3 dB steps throughout this range.
-    gain_db = 24 + ((gain_db - 24 + 1) / 3) * 3;
-    if (gain_db > 36) gain_db = 36;
-    if (esp_codec_dev_set_in_gain(s_mic, gain_db) != ESP_CODEC_DEV_OK) return ESP_FAIL;
-    xSemaphoreTake(s_lock, portMAX_DELAY);
-    s_status.microphone_gain_db = gain_db;
-    xSemaphoreGive(s_lock);
-    ESP_LOGI(TAG, "Microphone gain set to %u dB", gain_db);
     return ESP_OK;
 }
 

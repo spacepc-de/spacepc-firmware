@@ -35,7 +35,6 @@ static tflite::MicroInterpreter *s_interpreter;
 static TfLiteTensor *s_input;
 static TfLiteTensor *s_output;
 static bool s_available;
-static uint8_t s_profile;
 
 static float s_twiddle_cos[FFT_SIZE / 2];
 static float s_twiddle_sin[FFT_SIZE / 2];
@@ -209,14 +208,6 @@ extern "C" esp_err_t snore_classifier_init(void)
     return ESP_OK;
 }
 
-extern "C" esp_err_t snore_classifier_set_profile(uint8_t profile)
-{
-    if (profile > 1 || !s_available) return ESP_ERR_INVALID_ARG;
-    s_profile = profile;
-    ESP_LOGI(TAG, "Snoring sensitivity: %s", profile == 0 ? "balanced" : "sensitive");
-    return ESP_OK;
-}
-
 extern "C" void snore_classifier_get_info(snore_classifier_info_t *info)
 {
     memset(info, 0, sizeof(*info));
@@ -238,8 +229,8 @@ extern "C" esp_err_t snore_classifier_predict(const int16_t *samples, size_t cou
     *probability = 1.0f / (1.0f + expf(-logit));
     static unsigned prediction_count;
     if (++prediction_count == 1 || prediction_count % 10 == 0) {
-        ESP_LOGI(TAG, "Snoring %.1f%%, audio %.1f dBFS, inference profile %u",
-                 *probability * 100.0f, amplitude_dbfs(samples), s_profile);
+        ESP_LOGI(TAG, "Snoring %.1f%%, audio %.1f dBFS",
+                 *probability * 100.0f, amplitude_dbfs(samples));
     }
     return ESP_OK;
 }

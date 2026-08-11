@@ -5,6 +5,7 @@
 #include "recorder_ui.h"
 #include "snore_classifier.h"
 #include "sleep_engine.h"
+#include "wifi_manager.h"
 
 void app_main(void)
 {
@@ -27,4 +28,6 @@ void app_main(void)
     ESP_LOGI("sleep_ai", "Classifier: %s", esp_err_to_name(model_err));
     err = sleep_engine_init();
     ESP_LOGI("sleep_ai", "Sleep engine: %s", esp_err_to_name(err));
+    err = wifi_manager_init();
+    ESP_LOGI("sleep_ai", "WiFi/time: %s", esp_err_to_name(err));
 }

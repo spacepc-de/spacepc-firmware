@@ -30,6 +30,8 @@ typedef struct {
     bool active;
     uint8_t above_count;
     uint8_t below_count;
+    uint64_t candidate_started_ms;
+    uint64_t candidate_ended_ms;
     uint32_t probability_samples;
     float probability_sum;
     snore_event_t current;
@@ -39,3 +41,6 @@ void snore_event_detector_init(snore_event_detector_t *detector, const snore_det
 snore_detector_result_t snore_event_detector_process(snore_event_detector_t *detector,
                                                       uint64_t timestamp_ms, float probability,
                                                       float level_dbfs, snore_event_t *completed);
+snore_detector_result_t snore_event_detector_finish(snore_event_detector_t *detector,
+                                                     uint64_t timestamp_ms,
+                                                     snore_event_t *completed);

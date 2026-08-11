@@ -27,6 +27,5 @@ typedef void (*audio_pcm_callback_t)(const int16_t *stereo_samples, size_t frame
 esp_err_t audio_recorder_init(void);
 esp_err_t audio_recorder_start(void);
 esp_err_t audio_recorder_stop(void);
-esp_err_t audio_recorder_set_gain(uint8_t gain_db);
 void audio_recorder_get_status(recorder_status_t *status);
 void audio_recorder_set_pcm_callback(audio_pcm_callback_t callback, void *context);
