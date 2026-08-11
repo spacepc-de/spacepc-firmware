@@ -1,0 +1,9 @@
+/build/
+/managed_components/
+/sdkconfig
+/sdkconfig.old
+__pycache__/
+*.pyc
+/DEVELOPMENT_STATUS.md
+/local_models/*
+!/local_models/efficientat_mn04_snoring_int8.tflite

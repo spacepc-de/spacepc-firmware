@@ -9,6 +9,7 @@ hardware and generic ESP32 development boards.
 projects/
   dummy-test/
   ds18b20-mqtt/
+  sleep-buddy/
   spacepc-homeassistant-display/
   spacepc-weather-display/
 scripts/
@@ -20,6 +21,8 @@ lib/
 `dummy-test` verifies the build and release pipeline without controlling
 hardware. `ds18b20-mqtt` is a configurable temperature sensor with a local web
 interface, native Home Assistant discovery and optional MQTT publishing.
+`sleep-buddy` performs local snoring detection, night summaries and optional
+microSD audio recording on the Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3.
 `spacepc-homeassistant-display` is a Home Assistant-managed e-paper dashboard.
 `spacepc-weather-display` is an independent OpenWeatherMap weather dashboard
 for the Good Display ESP32-L, DESPI-C02 and GDEY075Z08.

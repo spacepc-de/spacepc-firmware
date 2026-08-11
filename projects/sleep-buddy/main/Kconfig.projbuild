@@ -1,0 +1,54 @@
+# The Waveshare ESP32-P4-WIFI6 board has an ESP32-C6 connectivity slave.
+# ESP-IDF 5.5 evaluates project defaults before the remote-WiFi component's
+# generated target choice, so expose the fixed board target at project level.
+config SLAVE_IDF_TARGET_ESP32C6
+    bool
+    default y
+
+config SLAVE_SOC_WIFI_SUPPORTED
+    bool
+    default y
+
+config SLAVE_SOC_WIFI_LIGHT_SLEEP_CLK_WIDTH
+    int
+    default 12
+
+config SLAVE_SOC_WIFI_HW_TSF
+    bool
+    default y
+
+config SLAVE_SOC_WIFI_FTM_SUPPORT
+    bool
+    default y
+
+config SLAVE_SOC_WIFI_GCMP_SUPPORT
+    bool
+    default y
+
+config SLAVE_SOC_WIFI_WAPI_SUPPORT
+    bool
+    default y
+
+config SLAVE_SOC_WIFI_CSI_SUPPORT
+    bool
+    default y
+
+config SLAVE_SOC_WIFI_MESH_SUPPORT
+    bool
+    default y
+
+config SLAVE_SOC_WIFI_HE_SUPPORT
+    bool
+    default y
+
+config SLAVE_SOC_WIFI_MAC_VERSION_NUM
+    int
+    default 2
+
+config SLAVE_FREERTOS_UNICORE
+    bool
+    default y
+
+config SLAVE_IDF_TARGET_ARCH_RISCV
+    bool
+    default y
