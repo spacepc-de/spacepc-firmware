@@ -7,6 +7,7 @@ on:
       - "ds18b20-mqtt-v*"
       - "spacepc-homeassistant-display-v*"
       - "spacepc-weather-display-v*"
+      - "sleep-buddy-v*"
 
 permissions:
   contents: write
@@ -27,7 +28,7 @@ jobs:
           tag="${GITHUB_REF_NAME}"
           project="${tag%-v*}"
           version="${tag#"$project-v"}"
-          if [[ "$project" != "dummy-test" && "$project" != "ds18b20-mqtt" && "$project" != "spacepc-homeassistant-display" && "$project" != "spacepc-weather-display" ]]; then
+          if [[ "$project" != "dummy-test" && "$project" != "ds18b20-mqtt" && "$project" != "spacepc-homeassistant-display" && "$project" != "spacepc-weather-display" && "$project" != "sleep-buddy" ]]; then
             echo "Unsupported project: $project"
             exit 1
           fi
@@ -38,10 +39,20 @@ jobs:
           echo "project=$project" >> "$GITHUB_OUTPUT"
           echo "version=$version" >> "$GITHUB_OUTPUT"
       - name: Install PlatformIO
+        if: steps.release.outputs.project != 'sleep-buddy'
         run: pip install -r requirements.txt
-      - name: Compile
+      - name: Compile PlatformIO firmware
+        if: steps.release.outputs.project != 'sleep-buddy'
         working-directory: projects/${{ steps.release.outputs.project }}
         run: pio run
+      - name: Compile Sleep Buddy ESP-IDF firmware
+        if: steps.release.outputs.project == 'sleep-buddy'
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5
+          target: esp32p4
+          path: projects/sleep-buddy
+          command: idf.py build
       - name: Prepare manifest and checksums
         shell: bash
         run: |
@@ -78,18 +89,31 @@ jobs:
               --hardware "Good Display ESP32-L with DESPI-C02 and GDEY075Z08"
               --release-note "Home Assistant-managed 7.5-inch e-paper display with value, status and graph widgets."
             )
-          else
+          elif [[ "${{ steps.release.outputs.project }}" == "spacepc-weather-display" ]]; then
             args+=(
               --target "ESP32:esp32:projects/${{ steps.release.outputs.project }}/.pio/build/esp32-l"
               --hardware "Good Display ESP32-L with DESPI-C02 and GDEY075Z08"
               --release-note "OpenWeatherMap weather dashboard with captive-portal setup, five-day forecast and configurable deep-sleep interval."
+            )
+          else
+            args+=(
+              --target "ESP32-P4:esp32-p4:projects/${{ steps.release.outputs.project }}/build"
+              --hardware "Waveshare ESP32-P4-WIFI6-Touch-LCD-4.3"
+              --stability "beta"
+              --release-note "Local Sleep Buddy snoring monitor with touch display, optional WAV recording and seven-night microSD history. This beta is not a medical device."
             )
           fi
           node scripts/prepare-release.mjs "${args[@]}"
       - name: Publish immutable release assets
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" firmware-dist/* --verify-tag --generate-notes
+        shell: bash
+        run: |
+          release_args=(--verify-tag --generate-notes)
+          if [[ "${{ steps.release.outputs.project }}" == "sleep-buddy" ]]; then
+            release_args+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" firmware-dist/* "${release_args[@]}"
       - name: Publish browser installer files to S3
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.S3_ACCESS_KEY_ID }}
