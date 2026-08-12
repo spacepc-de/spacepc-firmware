@@ -1,0 +1,44 @@
+name: Compile Orb
+
+on:
+  push:
+    paths:
+      - "projects/orb/**"
+      - "projects/spacepc-airstation/components/esp32_p4_wifi6_touch_lcd_4_3/**"
+      - ".github/workflows/orb-ci.yml"
+  pull_request:
+    paths:
+      - "projects/orb/**"
+      - "projects/spacepc-airstation/components/esp32_p4_wifi6_touch_lcd_4_3/**"
+      - ".github/workflows/orb-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build ESP32-P4 firmware
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5
+          target: esp32p4
+          path: projects/orb
+          command: idf.py build
+      - name: Collect flash package
+        run: |
+          mkdir -p projects/orb/dist
+          cp projects/orb/build/orb.bin projects/orb/dist/orb.bin
+          cp projects/orb/build/bootloader/bootloader.bin projects/orb/dist/bootloader.bin
+          cp projects/orb/build/partition_table/partition-table.bin projects/orb/dist/partition-table.bin
+          cp projects/orb/build/flash_args projects/orb/dist/flash_args
+      - name: Upload Orb firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: orb-firmware
+          path: projects/orb/dist/
+          if-no-files-found: error
+          retention-days: 30
