@@ -21,14 +21,14 @@ static sen66_data_t latest;
 static bool sensor_available;
 static char device_id[24];
 
-static const char *entity_info =
+static const char *entity_info_format =
     "[{\"id\":\"co2\",\"name\":\"Carbon dioxide\",\"platform\":\"sensor\",\"device_class\":\"carbon_dioxide\",\"state_class\":\"measurement\",\"unit\":\"ppm\"},"
     "{\"id\":\"pm1\",\"name\":\"PM1.0\",\"platform\":\"sensor\",\"device_class\":\"pm1\",\"state_class\":\"measurement\",\"unit\":\"µg/m³\"},"
     "{\"id\":\"pm25\",\"name\":\"PM2.5\",\"platform\":\"sensor\",\"device_class\":\"pm25\",\"state_class\":\"measurement\",\"unit\":\"µg/m³\"},"
     "{\"id\":\"pm4\",\"name\":\"PM4.0\",\"platform\":\"sensor\",\"state_class\":\"measurement\",\"unit\":\"µg/m³\"},"
     "{\"id\":\"pm10\",\"name\":\"PM10\",\"platform\":\"sensor\",\"device_class\":\"pm10\",\"state_class\":\"measurement\",\"unit\":\"µg/m³\"},"
-    "{\"id\":\"temperature\",\"name\":\"Temperature\",\"platform\":\"sensor\",\"device_class\":\"temperature\",\"state_class\":\"measurement\",\"unit\":\"°C\"},"
-    "{\"id\":\"humidity\",\"name\":\"Humidity\",\"platform\":\"sensor\",\"device_class\":\"humidity\",\"state_class\":\"measurement\",\"unit\":\"%\"},"
+    "{\"id\":\"temperature\",\"name\":\"Temperature\",\"platform\":\"sensor\",\"device_class\":\"temperature\",\"state_class\":\"measurement\",\"unit\":\"%s\"},"
+    "{\"id\":\"humidity\",\"name\":\"Humidity\",\"platform\":\"sensor\",\"device_class\":\"humidity\",\"state_class\":\"measurement\",\"unit\":\"%%\"},"
     "{\"id\":\"voc_index\",\"name\":\"VOC index\",\"platform\":\"sensor\",\"state_class\":\"measurement\",\"unit\":\"index\"},"
     "{\"id\":\"nox_index\",\"name\":\"NOx index\",\"platform\":\"sensor\",\"state_class\":\"measurement\",\"unit\":\"index\"},"
     "{\"id\":\"display_power\",\"name\":\"Display\",\"platform\":\"switch\"}]";
@@ -52,6 +52,8 @@ static esp_err_t info_handler(httpd_req_t *request)
         httpd_resp_set_status(request, "503 Service Unavailable");
         return httpd_resp_sendstr(request, "{\"error\":\"out_of_memory\"}");
     }
+    char entity_info[2048];
+    snprintf(entity_info, sizeof(entity_info), entity_info_format, air_ui_temperature_unit_symbol());
     snprintf(json, capacity,
         "{\"api_version\":1,\"device_id\":\"%s\",\"name\":\"Airstation\","
         "\"manufacturer\":\"SpacePC\",\"model\":\"Waveshare ESP32-P4 4.3 + SEN66\","
@@ -88,7 +90,7 @@ static esp_err_t state_handler(httpd_req_t *request)
     add_sensor(entities, "pm25", data.pm25, available);
     add_sensor(entities, "pm4", data.pm4, available);
     add_sensor(entities, "pm10", data.pm10, available);
-    add_sensor(entities, "temperature", data.temperature, available);
+    add_sensor(entities, "temperature", air_ui_temperature_for_display(data.temperature), available);
     add_sensor(entities, "humidity", data.humidity, available);
     add_sensor(entities, "voc_index", data.voc, available);
     add_sensor(entities, "nox_index", data.nox, available);

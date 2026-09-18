@@ -70,8 +70,9 @@ void app_main(void)
             data = latest;
             age = 0;
             failures = 0;
-            ESP_LOGI(TAG, "CO2 %.0f ppm, PM2.5 %.1f ug/m3, T %.1f C, RH %.0f%%",
-                     data.co2, data.pm25, data.temperature, data.humidity);
+            ESP_LOGI(TAG, "CO2 %.0f ppm, PM2.5 %.1f ug/m3, T %.1f %s, RH %.0f%%",
+                     data.co2, data.pm25, air_ui_temperature_for_display(data.temperature),
+                     air_ui_temperature_unit_symbol(), data.humidity);
         } else {
             ++age;
             ++failures;
