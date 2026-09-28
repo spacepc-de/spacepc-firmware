@@ -26,6 +26,7 @@
 typedef struct {
     lv_obj_t *root;
     lv_obj_t *value;
+    lv_obj_t *unit;
     lv_obj_t *bar;
 } metric_card_t;
 
@@ -77,6 +78,8 @@ static lv_obj_t *on_input;
 static lv_obj_t *off_input;
 static lv_obj_t *timezone_dropdown;
 static lv_obj_t *time_source_dropdown;
+static lv_obj_t *temperature_unit_dropdown;
+static lv_obj_t *circle_temperature_unit;
 static lv_obj_t *brightness_slider;
 static lv_obj_t *brightness_value;
 static lv_obj_t *keyboard;
@@ -98,6 +101,9 @@ static int key_count;
 static bool key_shift;
 static bool key_symbols;
 static bool manual_time;
+static bool temperature_fahrenheit = true;
+
+static void refresh_history_graph(void);
 
 #define HISTORY_METRICS 7
 #define HISTORY_MINUTES (7 * 24 * 60)
@@ -113,7 +119,7 @@ static unsigned co2_recent_count;
 static const int history_ranges[] = {60, 180, 300, 720, 1440, 2880, 7200, 10080};
 static const char *history_range_names[] = {"1h", "3h", "5h", "12h", "1d", "2d", "5d", "7d"};
 static const char *history_metric_names[] = {"CO2", "PM2.5", "VOC", "NOx", "Temperature", "Humidity", "PM10"};
-static const char *history_metric_units[] = {"ppm", "ug/m3", "index", "index", "deg C", "% RH", "ug/m3"};
+static const char *history_metric_units[] = {"ppm", "ug/m3", "index", "index", "", "% RH", "ug/m3"};
 
 static const char *timezone_names =
     "Europe/Berlin (auto DST)\nUTC-12:00\nUTC-11:00\nUTC-10:00\nUTC-09:30\nUTC-09:00\n"
@@ -128,6 +134,33 @@ static const int timezone_offsets[] = {
     480, 525, 540, 570, 600, 630, 660, 720, 765, 780, 840
 };
 static int timezone_index;
+
+bool air_ui_temperature_fahrenheit(void)
+{
+    return temperature_fahrenheit;
+}
+
+float air_ui_temperature_for_display(float celsius)
+{
+    return temperature_fahrenheit ? (celsius * 9.0f / 5.0f) + 32.0f : celsius;
+}
+
+const char *air_ui_temperature_unit_symbol(void)
+{
+    return temperature_fahrenheit ? "°F" : "°C";
+}
+
+static const char *temperature_unit_text(void)
+{
+    return temperature_fahrenheit ? "deg F" : "deg C";
+}
+
+static void apply_temperature_unit_labels(void)
+{
+    if (cards[3].unit) lv_label_set_text(cards[3].unit, temperature_unit_text());
+    if (circle_temperature_unit) lv_label_set_text(circle_temperature_unit, temperature_unit_text());
+    if (history_y_unit && history_metric == 4) lv_label_set_text(history_y_unit, temperature_unit_text());
+}
 
 static void apply_timezone(int index)
 {
@@ -185,6 +218,7 @@ static void load_settings(void)
     if (nvs_get_i32(handle, "display_off", &value) == ESP_OK) display_off_minute = value;
     if (nvs_get_i32(handle, "timezone", &value) == ESP_OK) timezone_index = value;
     if (nvs_get_i32(handle, "time_source", &value) == ESP_OK) manual_time = value != 0;
+    if (nvs_get_i32(handle, "temp_unit", &value) == ESP_OK) temperature_fahrenheit = value != 0;
     nvs_close(handle);
     apply_timezone(timezone_index);
 }
@@ -416,6 +450,7 @@ static void save_event(lv_event_t *event)
     }
     time_configured = true;
     timezone_index = lv_dropdown_get_selected(timezone_dropdown);
+    temperature_fahrenheit = lv_dropdown_get_selected(temperature_unit_dropdown) == 0;
     apply_timezone(timezone_index);
     nvs_handle_t handle;
     if (nvs_open("air-ui", NVS_READWRITE, &handle) == ESP_OK) {
@@ -425,11 +460,14 @@ static void save_event(lv_event_t *event)
         nvs_set_i32(handle, "display_off", display_off_minute);
         nvs_set_i32(handle, "timezone", timezone_index);
         nvs_set_i32(handle, "time_source", manual_time ? 1 : 0);
+        nvs_set_i32(handle, "temp_unit", temperature_fahrenheit ? 1 : 0);
         nvs_set_str(handle, "ssid", lv_textarea_get_text(ssid_input));
         nvs_set_str(handle, "password", lv_textarea_get_text(password_input));
         nvs_commit(handle);
         nvs_close(handle);
     }
+    apply_temperature_unit_labels();
+    if (!lv_obj_has_flag(history_popup, LV_OBJ_FLAG_HIDDEN)) refresh_history_graph();
     wifi_manager_connect(lv_textarea_get_text(ssid_input), lv_textarea_get_text(password_input));
     lv_obj_add_flag(keyboard, LV_OBJ_FLAG_HIDDEN);
     for (int i = 0; i < 4; ++i) lv_obj_add_flag(settings_popups[i], LV_OBJ_FLAG_HIDDEN);
@@ -664,6 +702,7 @@ static void refresh_history_graph(void)
             unsigned oldest = (long_history_head + HISTORY_MINUTES - available) % HISTORY_MINUTES;
             unsigned slot = (oldest + j) % HISTORY_MINUTES;
             float value = long_history[slot * HISTORY_METRICS + history_metric];
+            if (history_metric == 4) value = air_ui_temperature_for_display(value);
             if (!isnan(value)) { sum += value; ++valid; }
         }
         int32_t plotted = LV_CHART_POINT_NONE;
@@ -693,7 +732,7 @@ static void refresh_history_graph(void)
         snprintf(text, sizeof(text), "%d", value);
         lv_label_set_text(history_y_labels[i], text);
     }
-    lv_label_set_text(history_y_unit, history_metric_units[history_metric]);
+    lv_label_set_text(history_y_unit, history_metric == 4 ? temperature_unit_text() : history_metric_units[history_metric]);
     unsigned actual_minutes = available > 1 ? available - 1 : 0;
     if (actual_minutes == 0) {
         lv_label_set_text(history_x_labels[0], "start");
@@ -797,8 +836,8 @@ static void make_metric(lv_obj_t *parent, int index, int x, int y,
     lv_obj_set_pos(name_label, 14, 12);
     cards[index].value = label(card, "--", &lv_font_montserrat_28, C_TEXT);
     lv_obj_set_pos(cards[index].value, 14, 32);
-    lv_obj_t *unit_label = label(card, unit, &lv_font_montserrat_12, C_MUTED);
-    lv_obj_align(unit_label, LV_ALIGN_BOTTOM_RIGHT, -13, -13);
+    cards[index].unit = label(card, unit, &lv_font_montserrat_12, C_MUTED);
+    lv_obj_align(cards[index].unit, LV_ALIGN_BOTTOM_RIGHT, -13, -13);
     cards[index].bar = lv_obj_create(card);
     lv_obj_set_pos(cards[index].bar, 0, 0);
     lv_obj_set_size(cards[index].bar, 5, 92);
@@ -872,7 +911,7 @@ void air_ui_create(void)
     make_metric(page_main, 0, 280, 68,  "PM2.5", "ug/m3", C_CYAN);
     make_metric(page_main, 1, 449, 68,  "VOC INDEX", "Index", C_GREEN);
     make_metric(page_main, 2, 618, 68,  "NOx INDEX", "Index", C_YELLOW);
-    make_metric(page_main, 3, 280, 174, "TEMPERATURE", "deg C", C_RED);
+    make_metric(page_main, 3, 280, 174, "TEMPERATURE", temperature_unit_text(), C_RED);
     make_metric(page_main, 4, 449, 174, "HUMIDITY", "% RH", C_CYAN);
     make_metric(page_main, 5, 618, 174, "PM10", "ug/m3", C_YELLOW);
 
@@ -1001,8 +1040,9 @@ void air_ui_create(void)
         lv_obj_set_width(circle_values[i], 104);
         lv_obj_set_style_text_align(circle_values[i], LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_pos(circle_values[i], satellite_pos[i].x + 4, satellite_pos[i].y + 42);
-        static const char *satellite_units[] = {"ug/m3", "index", "index", "deg C", "% RH", "ug/m3"};
-        lv_obj_t *satellite_unit = label(circle_page, satellite_units[i], &lv_font_montserrat_12, C_MUTED);
+        static const char *satellite_units[] = {"ug/m3", "index", "index", "", "% RH", "ug/m3"};
+        lv_obj_t *satellite_unit = label(circle_page, i == 3 ? temperature_unit_text() : satellite_units[i], &lv_font_montserrat_12, C_MUTED);
+        if (i == 3) circle_temperature_unit = satellite_unit;
         lv_obj_set_width(satellite_unit, 104);
         lv_obj_set_style_text_align(satellite_unit, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_pos(satellite_unit, satellite_pos[i].x + 4, satellite_pos[i].y + 75);
@@ -1079,8 +1119,8 @@ void air_ui_create(void)
 
     settings_menu = lv_obj_create(settings_page);
     lv_obj_set_pos(settings_menu, 0, 70); lv_obj_set_size(settings_menu, 800, 410); panel(settings_menu, C_BG, 0);
-    const char *menu_names[] = {"WiFi", "TIME", "DISPLAY SCHEDULE", "BRIGHTNESS"};
-    const char *menu_hints[] = {"Network and password", "NTP, manual time, zone", "Automatic on and off", "Display intensity"};
+    const char *menu_names[] = {"WiFi", "TIME - TEMPERATURE", "DISPLAY SCHEDULE", "BRIGHTNESS"};
+    const char *menu_hints[] = {"Network and password", "NTP, Time, zone, and temperature unit", "Automatic on and off", "Display intensity"};
     for (int i = 0; i < 4; ++i) {
         lv_obj_t *button = lv_button_create(settings_menu);
         lv_obj_set_pos(button, 24 + (i % 2) * 382, 18 + (i / 2) * 158);
@@ -1114,6 +1154,7 @@ void air_ui_create(void)
     off_input = lv_textarea_create(settings_popups[2]);
     timezone_dropdown = lv_dropdown_create(settings_popups[1]);
     time_source_dropdown = lv_dropdown_create(settings_popups[1]);
+    temperature_unit_dropdown = lv_dropdown_create(settings_popups[1]);
     lv_obj_t *fields[] = {ssid_input, password_input, time_input, on_input, off_input};
     const char *placeholders[] = {"WiFi SSID", "WiFi password", "Time HH:MM", "Turn on at HH:MM", "Turn off at HH:MM"};
     const lv_point_t field_pos[] = {{120,125},{120,195},{120,175},{120,165},{420,165}};
@@ -1174,6 +1215,15 @@ void air_ui_create(void)
     lv_obj_set_style_bg_color(timezone_dropdown, C_PANEL, 0);
     lv_obj_set_style_text_color(timezone_dropdown, C_TEXT, 0);
     lv_obj_set_style_border_width(timezone_dropdown, 0, 0);
+    lv_obj_t *temperature_unit_label = label(settings_popups[1], "TEMPERATURE UNIT", &lv_font_montserrat_12, C_MUTED);
+    lv_obj_set_pos(temperature_unit_label, 120, 318);
+    lv_dropdown_set_options(temperature_unit_dropdown, "Fahrenheit (°F)\nCelsius (°C)");
+    lv_dropdown_set_selected(temperature_unit_dropdown, temperature_fahrenheit ? 0 : 1);
+    lv_obj_set_pos(temperature_unit_dropdown, 120, 340);
+    lv_obj_set_size(temperature_unit_dropdown, 360, 44);
+    lv_obj_set_style_bg_color(temperature_unit_dropdown, C_PANEL, 0);
+    lv_obj_set_style_text_color(temperature_unit_dropdown, C_TEXT, 0);
+    lv_obj_set_style_border_width(temperature_unit_dropdown, 0, 0);
     lv_obj_t *bright_label = label(settings_popups[3], "DISPLAY BRIGHTNESS", &lv_font_montserrat_12, C_MUTED);
     lv_obj_set_pos(bright_label, 120, 135);
     brightness_slider = lv_slider_create(settings_popups[3]);
@@ -1312,6 +1362,7 @@ void air_ui_update(const sen66_data_t *d, bool connected, unsigned age)
     bool wifi_connected = wifi_manager_connected();
     lv_obj_set_style_bg_color(wifi_dot, wifi_connected ? C_GREEN : C_RED, 0);
     lv_label_set_text(wifi_text, "WiFi");
+    apply_temperature_unit_labels();
     if (!d || !sen66_data_valid(d)) return;
     if (splash && esp_timer_get_time() - splash_started_us >= 3000000) dismiss_splash();
 
@@ -1325,7 +1376,7 @@ void air_ui_update(const sen66_data_t *d, bool connected, unsigned age)
     else if (!isnan(d->co2) && d->co2 > 1000) lv_label_set_text(hero_hint, "Fresh air would help");
     else lv_label_set_text(hero_hint, "Everything looks healthy");
 
-    const float values[] = {d->pm25, d->voc, d->nox, d->temperature, d->humidity, d->pm10};
+    const float values[] = {d->pm25, d->voc, d->nox, air_ui_temperature_for_display(d->temperature), d->humidity, d->pm10};
     const int decimals[] = {1, 0, 0, 1, 0, 1};
     for (int i = 0; i < 6; ++i) {
         format_value(text, sizeof(text), values[i], decimals[i]);
@@ -1338,8 +1389,9 @@ void air_ui_update(const sen66_data_t *d, bool connected, unsigned age)
     lv_obj_set_style_border_color(circle_core, quality, 0);
     lv_obj_set_style_shadow_color(circle_core, quality, 0);
     const float maximums[] = {50, 500, 500, 40, 100, 100};
+    const float arc_values[] = {d->pm25, d->voc, d->nox, d->temperature, d->humidity, d->pm10};
     for (int i = 0; i < 6; ++i) {
-        int percent = isnan(values[i]) ? 0 : (int)(values[i] / maximums[i] * 100);
+        int percent = isnan(arc_values[i]) ? 0 : (int)(arc_values[i] / maximums[i] * 100);
         lv_arc_set_value(circle_arcs[i], LV_CLAMP(0, percent, 100));
         format_value(text, sizeof(text), values[i], decimals[i]);
         animated_number_set(circle_values[i], text);
